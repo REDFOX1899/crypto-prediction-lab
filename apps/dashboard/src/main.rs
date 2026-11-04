@@ -1,14 +1,27 @@
+mod stream;
+
 use axum::{
     Json, Router,
     extract::State,
     http::{StatusCode, header},
-    response::{Html, IntoResponse, Response},
+    response::{
+        Html, IntoResponse, Response,
+        sse::{Event, KeepAlive, Sse},
+    },
     routing::get,
 };
 use chrono::{DateTime, Utc};
 use kalshi_client::{Client, Market, OrderBook, current_market};
 use serde::Serialize;
-use std::sync::Arc;
+use std::{convert::Infallible, sync::Arc};
+use tokio::sync::watch;
+use tokio_stream::{StreamExt, wrappers::WatchStream};
+
+#[derive(Clone)]
+struct AppState {
+    client: Arc<Client>,
+    stream_tx: watch::Sender<stream::Update>,
+}
 
 const SERIES: &str = "KXBTC15M";
 
@@ -24,7 +37,8 @@ async fn index() -> Html<&'static str> {
     Html(include_str!("../public/index.html"))
 }
 
-async fn snapshot(State(client): State<Arc<Client>>) -> Response {
+async fn snapshot(State(state): State<AppState>) -> Response {
+    let client = state.client;
     let markets = match client.open_markets(SERIES).await {
         Ok(markets) => markets,
         Err(error) => {
@@ -55,13 +69,34 @@ async fn snapshot(State(client): State<Arc<Client>>) -> Response {
         .into_response()
 }
 
+async fn live(
+    State(state): State<AppState>,
+) -> Sse<impl futures_util::Stream<Item = Result<Event, Infallible>>> {
+    let events = WatchStream::new(state.stream_tx.subscribe()).map(|update| {
+        let event = Event::default()
+            .json_data(update)
+            .expect("stream update is serializable");
+        Ok(event)
+    });
+    Sse::new(events).keep_alive(KeepAlive::default())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Arc::new(Client::new()?);
+    let credentials = stream::Credentials::from_env()
+        .map_err(|error| format!("Stream configuration: {error}"))?;
+    let (tx, _stream_rx) = watch::channel(stream::Update::status("connecting"));
+    stream::start(client.clone(), credentials, tx.clone());
+    let state = AppState {
+        client,
+        stream_tx: tx,
+    };
     let app = Router::new()
         .route("/", get(index))
         .route("/api/snapshot", get(snapshot))
-        .with_state(client);
+        .route("/api/live", get(live))
+        .with_state(state);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await?;
     println!("Crypto Prediction Lab: http://127.0.0.1:3000");
     axum::serve(listener, app).await?;

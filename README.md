@@ -35,3 +35,16 @@ cargo run -p dashboard
 Open http://127.0.0.1:3000. The server listens only on your Mac and uses the same Rust client as the CLI. It polls public BTC market and order-book snapshots every 10 seconds; no Kalshi account or API key is needed. The chart begins collecting YES ask snapshots only while the page is open, resets when the market rolls over, and does not fill in missing history. Quotes and order-book levels come from separate requests and are not an atomic snapshot. An unavailable order book is reported separately. This is not a live WebSocket feed or an execution system.
 
 Kalshi's order book reports YES and NO bids; it does not directly list asks. Quotes are indicative and do not guarantee fills. A registered account and API key are needed for Kalshi's authenticated WebSocket connection. Before publicly hosting market data, verify Kalshi and benchmark-provider redistribution terms, operating costs, and rate limits.
+
+### Optional: live ticker stream
+
+Create a production Ed25519 API key in Kalshi under Account & security → API Keys. Store the downloaded private key outside this repository with owner-only access. Never paste the key into chat or commit it. Set the key ID and private-key file path in your local shell, then start the dashboard:
+
+```sh
+read -r 'KALSHI_API_KEY_ID?Kalshi API key ID: '
+export KALSHI_API_KEY_ID
+export KALSHI_PRIVATE_KEY_PATH="$HOME/.config/crypto-prediction-lab/kalshi-private-key.pem"
+cargo run -p dashboard
+```
+
+The example path must point to your own key file. The server signs the WebSocket handshake locally; the key never enters the browser. Production credentials are required for the production endpoint. When configured, a single shared stream provides BTC ticker quotes to local pages. The order book remains a public REST snapshot, not a streamed order book. The app reconnects and rechecks market rollover; if disconnected, it falls back to public snapshots. The chart represents observed asks, not a complete history. Missing stream events cannot be recovered from the ticker stream. Never expose this local server or its credentials to the public without a separate deployment and security review.

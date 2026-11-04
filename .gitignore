@@ -2,3 +2,7 @@
 .env
 .env.*
 !.env.example
+
+# Never commit private keys
+*.pem
+*.key
