@@ -15,6 +15,13 @@ async fn main() -> Result<()> {
         bail!("Usage: market-cli [SERIES_TICKER] (uppercase letters and digits)");
     }
     let client = Client::new()?;
+    let metadata = client
+        .series(&series)
+        .await
+        .context("Could not verify series category")?;
+    if !metadata.category.eq_ignore_ascii_case("crypto") {
+        bail!("Series {series} is not categorized as crypto by Kalshi");
+    }
     let status = client
         .exchange_status()
         .await

@@ -16,6 +16,16 @@ pub enum Error {
 }
 
 #[derive(Debug, Deserialize)]
+struct SeriesResponse {
+    series: Series,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Series {
+    pub category: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct ExchangeStatus {
     pub exchange_active: bool,
     pub trading_active: bool,
@@ -60,6 +70,19 @@ impl Client {
                 .build()?,
             base_url: base_url.trim_end_matches('/').to_owned(),
         })
+    }
+
+    pub async fn series(&self, ticker: &str) -> Result<Series, Error> {
+        // The CLI validates the ticker before placing it in this path.
+        let response: SeriesResponse = self
+            .http
+            .get(format!("{}/series/{}", self.base_url, ticker))
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        Ok(response.series)
     }
 
     pub async fn exchange_status(&self) -> Result<ExchangeStatus, Error> {

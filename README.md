@@ -10,7 +10,7 @@ Install stable Rust using [rustup](https://rustup.rs/), then:
 cargo run -p market-cli -- KXBTC15M
 ```
 
-Pass another verified crypto series ticker to inspect it. The caller is responsible for choosing a crypto series; the API itself is not restricted to crypto. If no currently active window exists, the CLI says so. Quotes can be missing or stale and do not guarantee a fill. Trading status is for the default exchange index.
+Pass another verified crypto series ticker to inspect it. The CLI checks the series category with Kalshi and accepts crypto series only. If no currently active window exists, the CLI says so. Quotes can be missing or stale and do not guarantee a fill. Trading status is for the default exchange index.
 
 ## Verify
 
