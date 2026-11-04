@@ -22,7 +22,20 @@
     }
     return bars;
   }
-  const api = { lineData, candleData };
+  function combine(history, observed, kind) {
+    const historical = history.map(b => ({time:b.time,open:Number(b.open),high:Number(b.high),low:Number(b.low),close:Number(b.close)}));
+    const cutoff = historical.length ? (historical.at(-1).time + 60) * 1000 : -Infinity;
+    const live = observed.filter(p => p.t >= cutoff);
+    const later = kind === 'line' ? lineData(live) : candleData(live);
+    const result = [];
+    for (const bar of historical) {
+      if (result.length && bar.time - result.at(-1).time > 60) result.push({time:result.at(-1).time + 60});
+      result.push(kind === 'line' ? {time:bar.time,value:bar.close} : bar);
+    }
+    if (result.length && later.length && later[0].time - result.at(-1).time > 120) result.push({time:result.at(-1).time + 60});
+    return result.concat(later);
+  }
+  const api = { lineData, candleData, combine };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ChartData = api;
 })(globalThis);

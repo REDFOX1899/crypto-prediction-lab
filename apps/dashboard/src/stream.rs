@@ -40,9 +40,12 @@ impl Credentials {
         }
     }
     pub(crate) fn signature(&self, timestamp: &str) -> String {
+        self.signature_for(timestamp, WS_PATH)
+    }
+    pub(crate) fn signature_for(&self, timestamp: &str, path: &str) -> String {
         STANDARD.encode(
             self.key
-                .sign(format!("{timestamp}GET{WS_PATH}").as_bytes())
+                .sign(format!("{timestamp}GET{path}").as_bytes())
                 .to_bytes(),
         )
     }

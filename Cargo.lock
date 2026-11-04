@@ -299,6 +299,7 @@ dependencies = [
  "ed25519-dalek",
  "futures-util",
  "kalshi-client",
+ "reqwest",
  "rust_decimal",
  "serde",
  "serde_json",

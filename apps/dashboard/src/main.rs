@@ -1,3 +1,4 @@
+mod history;
 mod order_book;
 mod reference;
 mod stream;
@@ -24,6 +25,7 @@ struct AppState {
     client: Arc<Client>,
     stream_tx: watch::Sender<stream::Update>,
     reference_tx: watch::Sender<reference::ReferenceUpdate>,
+    history: std::sync::Arc<history::HistoryService>,
 }
 
 const SERIES: &str = "KXBTC15M";
@@ -93,6 +95,31 @@ async fn snapshot(State(state): State<AppState>) -> Response {
         .into_response()
 }
 
+async fn historical_reference(State(state): State<AppState>) -> impl IntoResponse {
+    (
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(state.history.reference().await),
+    )
+}
+
+async fn historical_market(State(state): State<AppState>) -> Response {
+    let markets = match state.client.open_markets(SERIES).await {
+        Ok(markets) => markets,
+        Err(_) => return (StatusCode::BAD_GATEWAY, "Market discovery unavailable").into_response(),
+    };
+    let Some(market) = current_market(&markets, Utc::now()) else {
+        return (StatusCode::NOT_FOUND, "No active BTC market").into_response();
+    };
+    match state
+        .history
+        .market(&market.ticker, market.open_time.timestamp())
+        .await
+    {
+        Ok(candles) => ([(header::CACHE_CONTROL, "no-store")], Json(candles)).into_response(),
+        Err(_) => (StatusCode::BAD_GATEWAY, "Market history unavailable").into_response(),
+    }
+}
+
 async fn live(
     State(state): State<AppState>,
 ) -> Sse<impl futures_util::Stream<Item = Result<Event, Infallible>>> {
@@ -124,12 +151,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (tx, _stream_rx) = watch::channel(stream::Update::status("connecting"));
     let (reference_tx, _reference_rx) =
         watch::channel(reference::ReferenceUpdate::status("connecting"));
+    let history = std::sync::Arc::new(history::HistoryService::new(credentials.clone())?);
     reference::start(credentials.clone(), reference_tx.clone());
     stream::start(client.clone(), credentials, tx.clone());
     let state = AppState {
         client,
         stream_tx: tx,
         reference_tx,
+        history,
     };
     let app = Router::new()
         .route("/", get(index))
@@ -137,6 +166,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/assets/chart-data.js", get(chart_data))
         .route("/licenses/lightweight-charts", get(chart_license))
         .route("/api/snapshot", get(snapshot))
+        .route("/api/history/reference", get(historical_reference))
+        .route("/api/history/market", get(historical_market))
         .route("/api/live", get(live))
         .route("/api/reference", get(reference_live))
         .with_state(state);
