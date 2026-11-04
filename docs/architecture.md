@@ -1,9 +1,11 @@
 # Architecture
 
-The CLI handles presentation; `kalshi-client` owns the read-only HTTP boundary and typed response models. The asynchronous client reuses one HTTP connection pool, times out requests, checks HTTP status, and follows cursors until exhausted. It rejects repeated cursors to avoid infinite loops. A snapshot can change between pages, so results do not represent an atomic exchange snapshot.
+One Rust application serves a shared market workspace for BTC, ETH and SOL. `assets.rs` is the crypto-only allowlist: it maps each asset to a Kalshi 15-minute series and its CF Benchmarks index. API query parameters deserialize into an `Asset` enum; unsupported assets fail with HTTP 400 before upstream requests.
 
-The selector takes the clock as an argument, making its boundary behavior deterministic in tests. It chooses an active market whose open time has passed and close time has not, then the nearest close (ticker breaks ties). This is suitable for the initial 15-minute series; it is not a general market selection policy for all contracts.
+A shared `Client` reuses HTTP connections. Each asset has independent ticker/order-book stream state, a reference stream, and a history cache. All dashboard tabs for the same asset consume the same stream state. `Arc` shares ownership safely; Tokio watch channels retain the latest display state with bounded memory. Each asset has its own rollover and reconnect handling. Data collection for durable replay would need a separate loss-aware path before UI coalescing.
 
-Dollar values use `Decimal`, never binary floating point. YES and NO bids and asks are shown independently, rather than treating a bid as a purchase price. Missing fields stay missing. Quotes are snapshots, not executable fills. Exchange-wide status describes the default exchange index, which may differ from a particular market's index.
+The browser uses the server-provided registry for its selector. Switching assets closes the previous event streams and clears the chart and quote state. A selection generation guards asynchronous responses, preventing a delayed request from a previously selected asset from updating the current workspace.
 
-No credentials, orders, trading, persistence, live streaming, or public redistribution are implemented. Check market-specific contract terms before interpreting settlement. Review Kalshi and index-provider market-data rights before redistribution.
+Kalshi books contain YES and NO bids. Decimal-safe Rust values maintain aggregate price levels, and subscription sequence gaps trigger a reconnect and fresh snapshot. Snapshot fallbacks are labeled. Historical contract candles remain distinct from reference-index history and sampled live observations. History can be delayed or unavailable depending on account entitlement.
+
+The server binds to loopback only (port 3000 by default; `DASHBOARD_PORT` is available for local testing). Credentials are read only by the server and never included in API responses or browser state. The application has no order or transfer operations. Review data rights, operating budget and deployment controls before public hosting.

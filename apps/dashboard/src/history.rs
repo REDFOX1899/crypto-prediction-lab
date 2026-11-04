@@ -1,4 +1,5 @@
 //! Read-only, bounded history requests. Credentials stay on the server.
+use crate::assets::Asset;
 use crate::stream::Credentials;
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
@@ -122,13 +123,15 @@ fn market_candles(items: Vec<MarketCandle>, now: i64) -> Vec<Candle> {
     candles.into_values().collect()
 }
 pub struct HistoryService {
+    asset: Asset,
     http: reqwest::Client,
     credentials: Option<Credentials>,
     cached: Mutex<Option<(Instant, History)>>,
 }
 impl HistoryService {
-    pub fn new(credentials: Option<Credentials>) -> Result<Self, reqwest::Error> {
+    pub fn new(credentials: Option<Credentials>, asset: Asset) -> Result<Self, reqwest::Error> {
         Ok(Self {
+            asset,
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(15))
                 .build()?,
@@ -169,7 +172,7 @@ impl HistoryService {
                 .http
                 .get(url)
                 .query(&[
-                    ("id", "BRTI"),
+                    ("id", self.asset.info().index),
                     ("timespan", "HOUR"),
                     ("timestamp", &timestamp),
                 ])
@@ -233,7 +236,8 @@ impl HistoryService {
         let response: MarketEnvelope = self
             .http
             .get(format!(
-                "{API}/series/KXBTC15M/markets/{ticker}/candlesticks"
+                "{API}/series/{}/markets/{ticker}/candlesticks",
+                self.asset.info().series
             ))
             .query(&[
                 ("start_ts", open_time.to_string()),

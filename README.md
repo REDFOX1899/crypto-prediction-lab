@@ -64,3 +64,9 @@ The bundled chart library is Apache-2.0 licensed; its license and notice are in 
 ### Historical data details
 
 BRTI history comes from Kalshi’s authenticated CF Benchmarks passthrough (`/cfbenchmarks/history/values`), requesting two completed UTC-hour windows and aggregating returned index ticks into one-minute OHLC bars. Data can be delayed or unavailable, and this endpoint may require account entitlement. The server bounds response size and caches results for five minutes. It never sends key material to the browser. The YES chart uses Kalshi’s public 1-minute YES-ask candlesticks for the current market only, followed by locally observed live quote values. Past candles end at their stated time; the chart places them at the minute start. Null, invalid and unfinished provider candles are omitted. The current live candle may be incomplete. Older settled markets and complete backtesting remain out of scope. Verify data rights before storage or public redistribution.
+
+### Shared asset workspace
+
+The selector enables BTC, ETH and SOL 15-minute markets. One registry supplies the supported symbols, market series and reference indices. Select an asset to change the shared chart, live quotes, order book and history. The selected symbol is kept in the page URL, for example `/?asset=ETH`. Unsupported API assets are rejected. History and live reference access can differ by asset and account entitlement. Per-asset workers and caches are shared by dashboard tabs. Browser requests from an older selection are ignored after switching.
+
+For a second local preview server: `DASHBOARD_PORT=3001 cargo run -p dashboard`.

@@ -1,4 +1,5 @@
-//! Independent read-only CF Benchmarks BRTI feed; failure does not interrupt the order book.
+//! Independent read-only CF Benchmarks reference feed; failure does not interrupt the order book.
+use crate::assets::Asset;
 use crate::stream::Credentials;
 use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
@@ -39,16 +40,16 @@ struct Value {
     value: Decimal,
 }
 
-fn parse_reference(value: serde_json::Value) -> Result<Value, ()> {
+fn parse_reference(value: serde_json::Value, index: &str) -> Result<Value, ()> {
     let frame: Frame = serde_json::from_value(value).map_err(|_| ())?;
     let data: Value = serde_json::from_str(&frame.data).map_err(|_| ())?;
-    if frame.index_id != "BRTI" || data.id != "BRTI" || data.value <= Decimal::ZERO {
+    if frame.index_id != index || data.id != index || data.value <= Decimal::ZERO {
         return Err(());
     }
     Ok(data)
 }
 
-pub fn start(credentials: Option<Credentials>, tx: watch::Sender<ReferenceUpdate>) {
+pub fn start(credentials: Option<Credentials>, tx: watch::Sender<ReferenceUpdate>, asset: Asset) {
     let Some(credentials) = credentials else {
         tx.send_replace(ReferenceUpdate::status("disabled"));
         return;
@@ -56,8 +57,11 @@ pub fn start(credentials: Option<Credentials>, tx: watch::Sender<ReferenceUpdate
     tokio::spawn(async move {
         loop {
             tx.send_replace(ReferenceUpdate::status("connecting"));
-            if connect(&credentials, &tx, URL).await.is_err() {
-                eprintln!("Bitcoin reference feed disconnected or unavailable; retrying.");
+            if connect(&credentials, &tx, URL, asset.info().index)
+                .await
+                .is_err()
+            {
+                eprintln!("Reference feed disconnected or unavailable; retrying.");
             }
             tx.send_replace(ReferenceUpdate::status("reconnecting"));
             time::sleep(Duration::from_secs(5)).await;
@@ -68,6 +72,7 @@ async fn connect(
     credentials: &Credentials,
     tx: &watch::Sender<ReferenceUpdate>,
     url: &str,
+    index: &str,
 ) -> Result<(), ()> {
     let ts = Utc::now().timestamp_millis().to_string();
     let mut request = url.into_client_request().map_err(|_| ())?;
@@ -86,7 +91,7 @@ async fn connect(
         .await
         .map_err(|_| ())?
         .map_err(|_| ())?;
-    let cmd = serde_json::json!({"id":1,"cmd":"subscribe","params":{"channels":["cfbenchmarks_value"],"index_ids":["BRTI"]}});
+    let cmd = serde_json::json!({"id":1,"cmd":"subscribe","params":{"channels":["cfbenchmarks_value"],"index_ids":[index]}});
     socket
         .send(Message::Text(cmd.to_string().into()))
         .await
@@ -106,7 +111,7 @@ async fn connect(
                         match json.get("type").and_then(|x|x.as_str()) {
                             Some("error")=>return Err(()),
                             Some("cfbenchmarks_value")=>{
-                                let value=parse_reference(json.get("msg").cloned().ok_or(())?)?;
+                                let value=parse_reference(json.get("msg").cloned().ok_or(())?,index)?;
                                 if latest_source_time.is_none_or(|last|value.time>last) {
                                     latest_source_time=Some(value.time);
                                     // A newly received tick with an old source timestamp is not live.
@@ -137,12 +142,15 @@ mod tests {
     #[test]
     fn parses_nested_upstream_value_and_rejects_wrong_index() {
         let msg = serde_json::json!({"index_id":"BRTI","data":"{\"type\":\"value\",\"id\":\"BRTI\",\"time\":1710000000123,\"value\":\"68000.12\"}"});
-        let v = parse_reference(msg.clone()).unwrap();
+        let v = parse_reference(msg.clone(), "BRTI").unwrap();
         assert_eq!(v.value.to_string(), "68000.12");
         assert_eq!(v.time, 1710000000123);
         let mut wrong = msg;
         wrong["index_id"] = "ETHUSD_RTI".into();
-        assert!(parse_reference(wrong).is_err());
+        assert!(parse_reference(wrong, "BRTI").is_err());
+        let eth = serde_json::json!({"index_id":"ETHUSD_RTI","data":"{\"id\":\"ETHUSD_RTI\",\"time\":1710000000123,\"value\":\"2500.12\"}"});
+        assert!(parse_reference(eth.clone(), "ETHUSD_RTI").is_ok());
+        assert!(parse_reference(eth, "BRTI").is_err());
     }
     #[tokio::test]
     async fn subscribes_to_brti_and_forwards_price() {
@@ -164,7 +172,7 @@ mod tests {
         let (tx, mut rx) = watch::channel(ReferenceUpdate::status("connecting"));
         let credentials = crate::stream::test_credentials();
         let url = format!("ws://{address}/trade-api/ws/v2");
-        let task = tokio::spawn(async move { connect(&credentials, &tx, &url).await });
+        let task = tokio::spawn(async move { connect(&credentials, &tx, &url, "BRTI").await });
         time::timeout(Duration::from_secs(3), rx.changed())
             .await
             .unwrap()

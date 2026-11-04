@@ -1,4 +1,5 @@
 //! Read-only Kalshi ticker and order-book subscriptions shared by local dashboard tabs.
+use crate::assets::Asset;
 use crate::order_book::{Book, BookView, Delta, Snapshot};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::Utc;
@@ -96,7 +97,12 @@ struct Ticker {
     yes_ask_dollars: Option<Decimal>,
 }
 
-pub fn start(client: Arc<Client>, credentials: Option<Credentials>, tx: watch::Sender<Update>) {
+pub fn start(
+    client: Arc<Client>,
+    credentials: Option<Credentials>,
+    tx: watch::Sender<Update>,
+    asset: Asset,
+) {
     let Some(credentials) = credentials else {
         tx.send_replace(Update::status("disabled"));
         return;
@@ -104,12 +110,12 @@ pub fn start(client: Arc<Client>, credentials: Option<Credentials>, tx: watch::S
     tokio::spawn(async move {
         loop {
             tx.send_replace(Update::status("connecting"));
-            let market = match client.open_markets("KXBTC15M").await {
+            let market = match client.open_markets(asset.info().series).await {
                 Ok(markets) => current_market(&markets, Utc::now()).cloned(),
                 Err(_) => None,
             };
             if let Some(market) = market
-                && connect_market(&client, &credentials, &market.ticker, &tx, WS_URL)
+                && connect_market(&client, &credentials, &market.ticker, &tx, WS_URL, asset)
                     .await
                     .is_err()
             {
@@ -127,6 +133,7 @@ async fn connect_market(
     ticker: &str,
     tx: &watch::Sender<Update>,
     url: &str,
+    asset: Asset,
 ) -> Result<(), ()> {
     let timestamp = Utc::now().timestamp_millis().to_string();
     let mut request = url.into_client_request().map_err(|_| ())?;
@@ -207,7 +214,7 @@ async fn connect_market(
             }
             _ = check_market.tick() => {
                 if last_message.elapsed() > Duration::from_secs(35) { return Err(()); }
-                let markets = client.open_markets("KXBTC15M").await.map_err(|_| ())?;
+                let markets = client.open_markets(asset.info().series).await.map_err(|_| ())?;
                 if current_market(&markets, Utc::now()).map(|m| m.ticker.as_str()) != Some(ticker) { return Ok(()); }
             }
         }
@@ -274,7 +281,7 @@ mod tests {
         };
         let url = format!("ws://{address}/trade-api/ws/v2");
         let task = tokio::spawn(async move {
-            connect_market(&client, &credentials, "BTC-TEST", &tx, &url).await
+            connect_market(&client, &credentials, "BTC-TEST", &tx, &url, Asset::Btc).await
         });
         time::timeout(Duration::from_secs(3), rx.changed())
             .await
@@ -315,7 +322,7 @@ mod tests {
         };
         let url = format!("ws://{address}/trade-api/ws/v2");
         let task = tokio::spawn(async move {
-            connect_market(&client, &credentials, "BTC-TEST", &tx, &url).await
+            connect_market(&client, &credentials, "BTC-TEST", &tx, &url, Asset::Btc).await
         });
         time::timeout(Duration::from_secs(3), rx.changed())
             .await
