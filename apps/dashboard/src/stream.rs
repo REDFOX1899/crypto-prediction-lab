@@ -1,4 +1,5 @@
-//! One read-only Kalshi ticker subscription, shared by all local dashboard tabs.
+//! Read-only Kalshi ticker and order-book subscriptions shared by local dashboard tabs.
+use crate::order_book::{Book, BookView, Delta, Snapshot};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use chrono::Utc;
 use ed25519_dalek::{Signer, SigningKey, pkcs8::DecodePrivateKey};
@@ -53,6 +54,8 @@ pub struct Update {
     pub yes_bid: Option<Decimal>,
     pub yes_ask: Option<Decimal>,
     pub received_at: Option<String>,
+    pub book: Option<BookView>,
+    pub book_received_at: Option<String>,
 }
 impl Update {
     pub fn status(state: &'static str) -> Self {
@@ -62,6 +65,8 @@ impl Update {
             yes_bid: None,
             yes_ask: None,
             received_at: None,
+            book: None,
+            book_received_at: None,
         }
     }
 }
@@ -135,6 +140,14 @@ async fn connect_market(
         .send(Message::Text(command.to_string().into()))
         .await
         .map_err(|_| ())?;
+    let command = serde_json::json!({"id":2,"cmd":"subscribe","params":{"channels":["orderbook_delta"],"market_ticker":ticker}});
+    socket
+        .send(Message::Text(command.to_string().into()))
+        .await
+        .map_err(|_| ())?;
+    let mut book = Book::default();
+    let mut latest = Update::status("subscribed");
+    latest.ticker = Some(ticker.to_owned());
     let mut check_market = time::interval(Duration::from_secs(15));
     check_market.tick().await;
     let mut last_message = time::Instant::now();
@@ -149,12 +162,28 @@ async fn connect_market(
                         let value: serde_json::Value = serde_json::from_str(&text).map_err(|_| ())?;
                         match value.get("type").and_then(|v| v.as_str()) {
                             Some("error") => return Err(()),
-                            Some("subscribed") => { tx.send_replace(Update::status("subscribed")); },
+                            Some("subscribed") => {},
                             Some("ticker") => {
                                 let envelope: Envelope = serde_json::from_value(value).map_err(|_| ())?;
                                 if envelope.kind == "ticker" && let Some(m) = envelope.msg && m.market_ticker.as_deref() == Some(ticker) {
-                                    tx.send_replace(Update {state:"live",ticker:Some(ticker.to_owned()),yes_bid:m.yes_bid_dollars,yes_ask:m.yes_ask_dollars,received_at:Some(Utc::now().to_rfc3339())});
+                                    latest.state="live"; latest.yes_bid=m.yes_bid_dollars; latest.yes_ask=m.yes_ask_dollars; latest.received_at=Some(Utc::now().to_rfc3339()); tx.send_replace(latest.clone());
                                 }
+                            }
+                            Some("orderbook_snapshot") => {
+                                let sid = value.get("sid").and_then(|v| v.as_u64()).ok_or(())?;
+                                let seq = value.get("seq").and_then(|v| v.as_u64()).ok_or(())?;
+                                let snapshot: Snapshot = serde_json::from_value(value.get("msg").cloned().ok_or(())?).map_err(|_| ())?;
+                                if snapshot.market_ticker != ticker { return Err(()); }
+                                book.snapshot(snapshot, sid, seq)?;
+                                latest.book=Some(book.view()); latest.book_received_at=Some(Utc::now().to_rfc3339()); tx.send_replace(latest.clone());
+                            }
+                            Some("orderbook_delta") => {
+                                let sid = value.get("sid").and_then(|v| v.as_u64()).ok_or(())?;
+                                let seq = value.get("seq").and_then(|v| v.as_u64()).ok_or(())?;
+                                let delta: Delta = serde_json::from_value(value.get("msg").cloned().ok_or(())?).map_err(|_| ())?;
+                                if delta.market_ticker != ticker { return Err(()); }
+                                book.delta(delta, sid, seq)?;
+                                latest.book=Some(book.view()); latest.book_received_at=Some(Utc::now().to_rfc3339()); tx.send_replace(latest.clone());
                             }
                             _ => {}
                         }
@@ -245,5 +274,66 @@ mod tests {
         assert_eq!(result.yes_ask.unwrap().to_string(), "0.4300");
         server.await.unwrap();
         let _ = task.await;
+    }
+    #[tokio::test]
+    async fn streams_book_snapshot_delta_and_rejects_gap() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let (advance_tx, advance_rx) = tokio::sync::oneshot::channel::<()>();
+        let (gap_tx, gap_rx) = tokio::sync::oneshot::channel::<()>();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_async(socket).await.unwrap();
+            let _ticker_command = ws.next().await.unwrap().unwrap();
+            let command = ws.next().await.unwrap().unwrap().into_text().unwrap();
+            let command: serde_json::Value = serde_json::from_str(&command).unwrap();
+            assert_eq!(command["params"]["channels"][0], "orderbook_delta");
+            ws.send(Message::Text(r#"{"type":"orderbook_snapshot","sid":2,"seq":10,"msg":{"market_ticker":"BTC-TEST","yes_dollars_fp":[["0.4200","3.00"]],"no_dollars_fp":[]}}"#.into())).await.unwrap();
+            advance_rx.await.unwrap();
+            ws.send(Message::Text(r#"{"type":"orderbook_delta","sid":2,"seq":11,"msg":{"market_ticker":"BTC-TEST","price_dollars":"0.4200","delta_fp":"2.50","side":"yes"}}"#.into())).await.unwrap();
+            gap_rx.await.unwrap();
+            ws.send(Message::Text(r#"{"type":"orderbook_delta","sid":2,"seq":13,"msg":{"market_ticker":"BTC-TEST","price_dollars":"0.4200","delta_fp":"1.00","side":"yes"}}"#.into())).await.unwrap();
+            time::sleep(Duration::from_millis(100)).await;
+        });
+        let (tx, mut rx) = watch::channel(Update::status("connecting"));
+        let client = Client::new().unwrap();
+        let credentials = Credentials {
+            key_id: "test".into(),
+            key: SigningKey::from_bytes(&[7; 32]),
+        };
+        let url = format!("ws://{address}/trade-api/ws/v2");
+        let task = tokio::spawn(async move {
+            connect_market(&client, &credentials, "BTC-TEST", &tx, &url).await
+        });
+        time::timeout(Duration::from_secs(3), rx.changed())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            rx.borrow().book.as_ref().unwrap().yes_dollars[0]
+                .1
+                .to_string(),
+            "3.00"
+        );
+        advance_tx.send(()).unwrap();
+        time::timeout(Duration::from_secs(3), rx.changed())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            rx.borrow().book.as_ref().unwrap().yes_dollars[0]
+                .1
+                .to_string(),
+            "5.50"
+        );
+        gap_tx.send(()).unwrap();
+        assert!(
+            time::timeout(Duration::from_secs(3), task)
+                .await
+                .unwrap()
+                .unwrap()
+                .is_err()
+        );
+        server.await.unwrap();
     }
 }

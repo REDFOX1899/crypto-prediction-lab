@@ -1,3 +1,4 @@
+mod order_book;
 mod stream;
 
 use axum::{
