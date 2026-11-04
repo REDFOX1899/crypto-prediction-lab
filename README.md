@@ -48,3 +48,9 @@ cargo run -p dashboard
 ```
 
 The example path must point to your own key file. The server signs the WebSocket handshake locally; the key never enters the browser. Production credentials are required for the production endpoint. When configured, a single shared stream provides BTC ticker quotes to local pages. The order book streams a full snapshot followed by ordered changes; a gap triggers reconnect and a fresh snapshot. The app falls back to a labeled public REST snapshot when streaming is unavailable. The app reconnects and rechecks market rollover; if disconnected, it falls back to public snapshots. The chart represents observed asks, not a complete history. Missing stream events cannot be recovered from the ticker stream. Never expose this local server or its credentials to the public without a separate deployment and security review.
+
+### Reading the charts and depth
+
+The BTC reference chart shows the CF Benchmarks BRTI index relayed by Kalshi and observations collected in the current page session. It is not the market's final settlement average. The dotted target line comes from the market's displayed target, when available. The YES contract chart is a separate series in cents. The reference feed uses the same read-only key on a separate connection; it can be unavailable independently of market quotes.
+
+Order-book bars represent the quantity at each displayed price relative to the largest displayed quantity on that same side, not cumulative depth. A YES bid of 35¢ corresponds to a NO ask of 65¢ at the same quantity; likewise a NO bid of 40¢ implies a YES ask of 60¢. Quotes can change and do not include fees. Before publishing any of this data, verify Kalshi and CF Benchmarks data rights.

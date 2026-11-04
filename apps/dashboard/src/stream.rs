@@ -18,8 +18,9 @@ const WS_URL: &str = "wss://external-api-ws.kalshi.com/trade-api/ws/v2";
 const WS_PATH: &str = "/trade-api/ws/v2";
 
 // Do not derive Debug: this structure contains secret material.
+#[derive(Clone)]
 pub struct Credentials {
-    key_id: String,
+    pub(crate) key_id: String,
     key: SigningKey,
 }
 impl Credentials {
@@ -38,12 +39,20 @@ impl Credentials {
             _ => Err("Set both KALSHI_API_KEY_ID and KALSHI_PRIVATE_KEY_PATH"),
         }
     }
-    fn signature(&self, timestamp: &str) -> String {
+    pub(crate) fn signature(&self, timestamp: &str) -> String {
         STANDARD.encode(
             self.key
                 .sign(format!("{timestamp}GET{WS_PATH}").as_bytes())
                 .to_bytes(),
         )
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn test_credentials() -> Credentials {
+    Credentials {
+        key_id: "test-id".into(),
+        key: SigningKey::from_bytes(&[7; 32]),
     }
 }
 

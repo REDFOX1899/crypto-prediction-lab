@@ -1,4 +1,5 @@
 mod order_book;
+mod reference;
 mod stream;
 
 use axum::{
@@ -22,6 +23,7 @@ use tokio_stream::{StreamExt, wrappers::WatchStream};
 struct AppState {
     client: Arc<Client>,
     stream_tx: watch::Sender<stream::Update>,
+    reference_tx: watch::Sender<reference::ReferenceUpdate>,
 }
 
 const SERIES: &str = "KXBTC15M";
@@ -82,21 +84,37 @@ async fn live(
     Sse::new(events).keep_alive(KeepAlive::default())
 }
 
+async fn reference_live(
+    State(state): State<AppState>,
+) -> Sse<impl futures_util::Stream<Item = Result<Event, Infallible>>> {
+    let events = WatchStream::new(state.reference_tx.subscribe()).map(|update| {
+        Ok(Event::default()
+            .json_data(update)
+            .expect("reference update is serializable"))
+    });
+    Sse::new(events).keep_alive(KeepAlive::default())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Arc::new(Client::new()?);
     let credentials = stream::Credentials::from_env()
         .map_err(|error| format!("Stream configuration: {error}"))?;
     let (tx, _stream_rx) = watch::channel(stream::Update::status("connecting"));
+    let (reference_tx, _reference_rx) =
+        watch::channel(reference::ReferenceUpdate::status("connecting"));
+    reference::start(credentials.clone(), reference_tx.clone());
     stream::start(client.clone(), credentials, tx.clone());
     let state = AppState {
         client,
         stream_tx: tx,
+        reference_tx,
     };
     let app = Router::new()
         .route("/", get(index))
         .route("/api/snapshot", get(snapshot))
         .route("/api/live", get(live))
+        .route("/api/reference", get(reference_live))
         .with_state(state);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:3000").await?;
     println!("Crypto Prediction Lab: http://127.0.0.1:3000");
