@@ -1,7 +1,7 @@
 //! Read-only access to Kalshi's public market endpoints.
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashSet, time::Duration};
 use thiserror::Error;
 
@@ -31,7 +31,7 @@ pub struct ExchangeStatus {
     pub trading_active: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Market {
     pub ticker: String,
     pub title: String,
@@ -43,6 +43,18 @@ pub struct Market {
     pub no_bid_dollars: Option<Decimal>,
     pub no_ask_dollars: Option<Decimal>,
     pub yes_sub_title: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OrderBookResponse {
+    orderbook_fp: OrderBook,
+}
+
+/// Kalshi returns aggregate YES and NO bid levels as [price, size] decimal strings.
+#[derive(Debug, Deserialize, Serialize)]
+pub struct OrderBook {
+    pub yes_dollars: Vec<(Decimal, Decimal)>,
+    pub no_dollars: Vec<(Decimal, Decimal)>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -94,6 +106,19 @@ impl Client {
             .error_for_status()?
             .json()
             .await?)
+    }
+
+    pub async fn order_book(&self, ticker: &str) -> Result<OrderBook, Error> {
+        let response: OrderBookResponse = self
+            .http
+            .get(format!("{}/markets/{}/orderbook", self.base_url, ticker))
+            .query(&[("depth", "10")])
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        Ok(response.orderbook_fp)
     }
 
     pub async fn open_markets(&self, series: &str) -> Result<Vec<Market>, Error> {
@@ -181,6 +206,25 @@ mod tests {
                 .ticker,
             "TEST"
         );
+    }
+
+    #[tokio::test]
+    async fn parses_order_book_and_preserves_fractional_levels() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/markets/TEST/orderbook"))
+            .and(query_param("depth", "10"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(
+                r#"{"orderbook_fp":{"yes_dollars":[["0.1250","3.50"]],"no_dollars":[]}}"#,
+            ))
+            .mount(&server)
+            .await;
+        let client = Client::with_base_url(&server.uri()).unwrap();
+        let book = client.order_book("TEST").await.unwrap();
+        assert_eq!(book.yes_dollars[0].0.to_string(), "0.1250");
+        assert_eq!(book.yes_dollars[0].1.to_string(), "3.50");
+        assert!(book.no_dollars.is_empty());
+        assert!(client.order_book("MISSING").await.is_err());
     }
 
     #[tokio::test]
