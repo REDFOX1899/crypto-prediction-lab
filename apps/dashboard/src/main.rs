@@ -40,6 +40,27 @@ async fn index() -> Html<&'static str> {
     Html(include_str!("../public/index.html"))
 }
 
+async fn chart_library() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/vendor/lightweight-charts-5.2.1.js"),
+    )
+}
+
+async fn chart_data() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/chart-data.js"),
+    )
+}
+
+async fn chart_license() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+        include_str!("../public/vendor/LICENSE-lightweight-charts.txt"),
+    )
+}
+
 async fn snapshot(State(state): State<AppState>) -> Response {
     let client = state.client;
     let markets = match client.open_markets(SERIES).await {
@@ -112,6 +133,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let app = Router::new()
         .route("/", get(index))
+        .route("/assets/lightweight-charts-5.2.1.js", get(chart_library))
+        .route("/assets/chart-data.js", get(chart_data))
+        .route("/licenses/lightweight-charts", get(chart_license))
         .route("/api/snapshot", get(snapshot))
         .route("/api/live", get(live))
         .route("/api/reference", get(reference_live))
