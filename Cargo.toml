@@ -1,0 +1,3 @@
+[workspace]
+members = ["apps/market-cli", "crates/kalshi-client"]
+resolver = "2"

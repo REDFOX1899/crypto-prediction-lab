@@ -1,0 +1,12 @@
+[package]
+name = "market-cli"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+anyhow = "1"
+chrono = "0.4"
+kalshi-client = { path = "../../crates/kalshi-client" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+rust_decimal = "1"
