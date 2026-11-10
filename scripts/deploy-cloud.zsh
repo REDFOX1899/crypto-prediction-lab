@@ -1,7 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 # Deploy only the crypto service. Runtime reads its two dedicated secrets.
-image="${1:-us-central1-docker.pkg.dev/gitunderstand/crypto-prediction-lab/dashboard:data-lab-20261109-r1}"
+image="${1:-us-central1-docker.pkg.dev/gitunderstand/crypto-prediction-lab/dashboard:data-lab-20261109-r2}"
 gcloud run deploy crypto-prediction-lab \
   --project=gitunderstand --region=us-central1 \
   --image="$image" \

@@ -1,6 +1,7 @@
 mod assets;
 mod combos;
 mod context;
+mod delivery;
 mod final_minute;
 mod history;
 mod order_book;
@@ -561,12 +562,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 let static_asset = request.uri().path().starts_with("/assets/")
                     && request.uri().path() != "/assets/feed-client.js";
+                let accepts_gzip = delivery::accepts_gzip(
+                    &request
+                        .headers()
+                        .get_all(header::ACCEPT_ENCODING)
+                        .iter()
+                        .filter_map(|value| value.to_str().ok())
+                        .collect::<Vec<_>>()
+                        .join(","),
+                );
                 let mut response = next.run(request).await;
                 if polling {
-                    let (parts, body) = response.into_parts();
+                    let (mut parts, body) = response.into_parts();
                     let Ok(bytes) = axum::body::to_bytes(body, 1024 * 1024).await else {
                         return StatusCode::BAD_GATEWAY.into_response();
                     };
+                    let bytes = delivery::encode(&mut parts.headers, bytes, accepts_gzip);
                     let allowed = egress
                         .lock()
                         .map(|mut b| b.allow(std::time::Instant::now(), bytes.len()))
@@ -661,6 +672,23 @@ impl ApiBudget {
 #[cfg(test)]
 mod hosting_tests {
     use super::*;
+    #[test]
+    fn compressed_page_can_load_within_the_existing_shared_allowance() {
+        let now = std::time::Instant::now();
+        let raw = axum::body::Bytes::from_static(include_bytes!("../public/index.html"));
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            axum::http::HeaderValue::from_static("text/html"),
+        );
+        let compressed = delivery::encode(&mut headers, raw.clone(), true);
+        let mut budget = EgressBudget {
+            tokens: 64.0 * 1024.0,
+            at: now,
+        };
+        assert!(!budget.allow(now, raw.len()));
+        assert!(budget.allow(now, compressed.len()));
+    }
     #[test]
     fn outbound_budget_limits_large_replies_and_refills() {
         let now = std::time::Instant::now();
