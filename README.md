@@ -16,7 +16,7 @@ Direct CF Benchmarks and Coinbase integrations and durable high-frequency event 
 
 ## Quote and outcome study
 
-The redesigned Home in this checkout compares archived YES asks with official results at minutes 5, 10 and 14. Choose an asset and price band to see the observed settlement rate, the break-even rate before fees and the eligible sample count. The first study covers November 7–9 UTC and is saved in the app's named Firestore database. The redesign is available locally. [Chart definitions, storage and refresh commands](docs/quote-study.md)
+The public dashboard compares archived YES asks with official results at minutes 5, 10 and 14. Choose an asset and price band to see the observed settlement rate, the break-even rate before fees and the eligible sample count. The first study covers November 7–9 UTC and is saved in the app's named Firestore database. [Chart definitions, storage and refresh commands](docs/quote-study.md)
 
 ## Data Lab
 
