@@ -1,0 +1,147 @@
+{
+  "schema_version": 1,
+  "start_day": "2026-11-09",
+  "end_day_exclusive": "2026-11-11",
+  "read_time": "2026-11-10T16:21:41.769384Z",
+  "extract_sha256": "af9edf80025f841cfc23e88503ee5fa51320eba2e0bc78c7c56aee8562d9d344",
+  "assets": {
+    "BTC": {
+      "expected_full_range": 192,
+      "completed_slots": 161,
+      "saved_snapshots": 33,
+      "official_results": 161,
+      "usable_books": 33,
+      "usable_books_with_official_result": 33,
+      "usable_at_exact_cutoff": 0,
+      "delayed_receipts": 33,
+      "unmatched_tickers": 0,
+      "usable_books_without_official_result": 0,
+      "book_exclusions": {
+        "missing_snapshot": 128
+      },
+      "by_day": {
+        "2026-11-09": {
+          "completed_slots": 96,
+          "saved_snapshots": 0,
+          "usable_books": 0,
+          "official_results": 96,
+          "matched_pairs": 0
+        },
+        "2026-11-10": {
+          "completed_slots": 65,
+          "saved_snapshots": 33,
+          "usable_books": 33,
+          "official_results": 65,
+          "matched_pairs": 33
+        }
+      },
+      "first_saved_open": "2026-11-10T08:00:00+00:00",
+      "missing_since_first_saved": 0,
+      "receipt_delay_seconds": {
+        "n": 33,
+        "p50": 18.396445,
+        "p95": 28.819064,
+        "max": 29.910478
+      },
+      "age_at_durable_availability_seconds": {
+        "n": 33,
+        "p50": 0.049298,
+        "p95": 0.112123,
+        "max": 0.195764
+      },
+      "provider_source_age": "unknown; source timestamp was not captured"
+    },
+    "ETH": {
+      "expected_full_range": 192,
+      "completed_slots": 161,
+      "saved_snapshots": 33,
+      "official_results": 161,
+      "usable_books": 33,
+      "usable_books_with_official_result": 33,
+      "usable_at_exact_cutoff": 0,
+      "delayed_receipts": 33,
+      "unmatched_tickers": 0,
+      "usable_books_without_official_result": 0,
+      "book_exclusions": {
+        "missing_snapshot": 128
+      },
+      "by_day": {
+        "2026-11-09": {
+          "completed_slots": 96,
+          "saved_snapshots": 0,
+          "usable_books": 0,
+          "official_results": 96,
+          "matched_pairs": 0
+        },
+        "2026-11-10": {
+          "completed_slots": 65,
+          "saved_snapshots": 33,
+          "usable_books": 33,
+          "official_results": 65,
+          "matched_pairs": 33
+        }
+      },
+      "first_saved_open": "2026-11-10T08:00:00+00:00",
+      "missing_since_first_saved": 0,
+      "receipt_delay_seconds": {
+        "n": 33,
+        "p50": 18.552356,
+        "p95": 28.98583,
+        "max": 30.047585
+      },
+      "age_at_durable_availability_seconds": {
+        "n": 33,
+        "p50": 0.0449,
+        "p95": 0.086823,
+        "max": 0.219857
+      },
+      "provider_source_age": "unknown; source timestamp was not captured"
+    },
+    "SOL": {
+      "expected_full_range": 192,
+      "completed_slots": 161,
+      "saved_snapshots": 33,
+      "official_results": 161,
+      "usable_books": 33,
+      "usable_books_with_official_result": 33,
+      "usable_at_exact_cutoff": 0,
+      "delayed_receipts": 33,
+      "unmatched_tickers": 0,
+      "usable_books_without_official_result": 0,
+      "book_exclusions": {
+        "missing_snapshot": 128
+      },
+      "by_day": {
+        "2026-11-09": {
+          "completed_slots": 96,
+          "saved_snapshots": 0,
+          "usable_books": 0,
+          "official_results": 96,
+          "matched_pairs": 0
+        },
+        "2026-11-10": {
+          "completed_slots": 65,
+          "saved_snapshots": 33,
+          "usable_books": 33,
+          "official_results": 65,
+          "matched_pairs": 33
+        }
+      },
+      "first_saved_open": "2026-11-10T08:00:00+00:00",
+      "missing_since_first_saved": 0,
+      "receipt_delay_seconds": {
+        "n": 33,
+        "p50": 18.679124,
+        "p95": 29.137194,
+        "max": 30.166554
+      },
+      "age_at_durable_availability_seconds": {
+        "n": 33,
+        "p50": 0.042577,
+        "p95": 0.073448,
+        "max": 0.124167
+      },
+      "provider_source_age": "unknown; source timestamp was not captured"
+    }
+  }
+}

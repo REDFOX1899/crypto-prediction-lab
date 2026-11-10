@@ -2,6 +2,20 @@
 
 Updated: 10 November 2026, America/New_York.
 
+## Ticket A — minute-10 audit and blinded packets
+
+Implemented `scripts/audit_minute_ten.py` and synthetic regression fixtures on `codex/minute-ten-audit`. A read-only GCP audit of November 9–10 UTC, frozen at 2026-11-10T16:21:41.769384Z, found 161 completed windows with archived official results per asset. BTC, ETH and SOL each have 33 usable two-sided books matched to their official result, zero unmatched tickers, and zero missing captures from the first saved opening at November 10 08:00 UTC onward. The 128 earlier missing snapshots per asset remain missing. Every book arrived after the exact minute-10 cutoff, so exact-cutoff model packets all hide observations. Median receipt delay is roughly 18–19s and p95 roughly 29s.
+
+- Added a read-only bounded extractor using the existing named-database reader, fixed server read time, immutable local extract and SHA-256 manifest, daily counts, exclusions and timing percentiles. Aggregate report is `docs/research-audits/minute-ten-2026-11-10.json`. Real captures remain in ignored `data/minute-ten-audit-20261110.json`.
+- Versioned model projection accepts only validated prospective fields, uses the later of combined receipt and Firestore creation, rounds nanosecond availability upward and rejects stale snapshots, missing depth and rollover. Outcome/expiration/hindsight fields cannot enter its input/hash. Separate component timing and provider source age remain unknown. The 60s observation-age limit is an explicit audit policy.
+- Checks passed with `python3 -m unittest discover -s scripts/tests -q` (21 tests) and `git diff --check`. Offline verification reproduced the report and checked exact-cutoff suppression, later availability and mutation independence for all 99 actual snapshots. Rust/frontend checks are inapplicable to this standalone Python/docs change.
+- GitHub publication is requested for this work. No application build or deployment is needed. No collection schedules, cloud writes, IAM or runtime settings were changed.
+- Next is Ticket B, bounded prospective opening and post-decision capture. See `docs/minute-ten-audit.md` for commands and limits. The existing snapshot dataset supports decisions after actual availability. It lacks exact-boundary books and post-decision fill evidence.
+
+## Proposed MCP and paper-testing work
+
+The [step-by-step research plan](agent-paper-research-plan.md) defines opening snapshots, private agent access, post-decision paper fills, forecast evaluation and a later demo execution adapter. Planning only. Verified the plan against the current source map, checkpoint documentation and the official MCP and Kalshi API documentation. Ticket A is implemented above. Next is Ticket B, bounded capture with actual availability times. No application release, schedule, access or production change.
+
 ## Current release — final-minute remaining-average threshold
 
 The owner authorized the indicator, GitHub publication, deployment and live verification. Branch `codex/final-minute-threshold` is based on `2416967`. Application commit `bb5e8b5` is on GitHub main and serves 100% of public traffic in `crypto-prediction-lab-00033-dar`. Cloud Build `f2981e73-12b1-45fd-9c2b-7a84718d7a1c` produced tag `final-minute-threshold`, digest `sha256:27aa302fa8623717cf8d3f99542748a4043160470a7d969864cd15e8d9d7dda2`.

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "asset": "BTC",
+  "open_time": "2026-11-10T08:00:00Z",
+  "cutoff": "2026-11-10T08:10:00Z",
+  "request_started_at": "2026-11-10T08:10:20Z",
+  "received_at": "2026-11-10T08:10:21.000000001Z",
+  "status": "available",
+  "observation": {
+    "ticker": "KXBTC15M-SYNTHETIC",
+    "target": "100.00",
+    "target_text": "Synthetic fixture",
+    "yes_bids": [["0.40", "12.00"]],
+    "no_bids": [["0.55", "7.00"]]
+  }
+}
