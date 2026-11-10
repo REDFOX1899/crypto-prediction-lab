@@ -73,8 +73,8 @@ $('replay-play').addEventListener('click',()=>{
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stop()});
 root.MarketReplay={open,close(){cancel();if(dialog.open)dialog.close()},async latest(asset){
  cancel();const g=generation,controller=new AbortController();flight=controller;const timeout=setTimeout(()=>controller.abort(),10000);
- try{const r=await fetch('/api/outcomes?asset='+asset+'&view=recent',{signal:controller.signal});if(!r.ok)throw Error();const d=await r.json();if(g!==generation)return;
- const c=d.contracts?.find(c=>c.asset===asset&&c.ticker);if(c)open(c);
+ try{const r=await fetch('/api/outcomes?asset='+asset,{signal:controller.signal});if(!r.ok)throw Error();const d=await r.json();if(g!==generation)return;
+ const c=d.contracts?.find(c=>c.asset===asset&&c.ticker);if(!c)throw Error('No archived window');open(c);
  }finally{clearTimeout(timeout);if(flight===controller)flight=null}
 }};
 })(typeof window!=='undefined'?window:globalThis);
