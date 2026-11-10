@@ -39,6 +39,16 @@ pub struct Board {
     pub contracts: Vec<Contract>,
     pub fetched_at: String,
 }
+impl Board {
+    /// Home only draws twelve official-result cells. The full board remains available to research views.
+    pub fn recent(&self) -> Value {
+        let contracts: Vec<_> = self.contracts.iter().take(12).map(|c| json!({
+            "asset": c.asset, "open_time": c.open_time, "close_time": c.close_time, "result": c.result
+        })).collect();
+        json!({"status": self.status, "fetched_at": self.fetched_at, "contracts": contracts})
+    }
+}
+
 #[derive(Deserialize)]
 struct Token {
     access_token: String,

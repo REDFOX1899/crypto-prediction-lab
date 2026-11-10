@@ -58,7 +58,7 @@ test('homepage shares subscriptions, preserves live quotes through metadata refr
  const context={window:root,document,Date:TestDate,AbortController,JSON,URL,Error,fetch:async(url,opts)=>{calls.push({url,signal:opts.signal});const asset=new URL(url,'https://test/').searchParams.get('asset');return {ok:true,json:async()=>url.includes('outcomes')?{status:'available',contracts:[]}:{...snapshot,market:{...market,floor_strike:'100',strike_type:'greater_or_equal',ticker:`KX${asset}15M-TEST`}}}},setTimeout(fn,ms){timers.set(++id,{fn,ms});return id},clearTimeout(id){timers.delete(id)},setInterval(fn,ms){intervals.set(++id,{fn,ms});return id},clearInterval(id){intervals.delete(id)}};
  vm.runInNewContext(fs.readFileSync(require.resolve('../public/homepage.js'),'utf8'),context);
  root.HomePage.enter();await new Promise(setImmediate);
- assert.equal(subscriptions.length,6);assert.equal(calls.length,6);assert.ok(!calls.some(c=>c.url==='/api/feeds'));
+ assert.equal(subscriptions.length,6);assert.equal(calls.length,6);assert.equal(calls.filter(c=>c.url.includes('/api/outcomes')&&c.url.endsWith('&view=recent')).length,3);assert.ok(!calls.some(c=>c.url==='/api/feeds'));
  subscriptions[0].onmessage({data:JSON.stringify(live)});
  assert.equal(nodes.get('home-live-BTC').textContent,'LIVE');assert.equal(nodes.get('home-yes-BTC').textContent,'71¢');
  subscriptions[1].onmessage({data:JSON.stringify({state:'live',value:'102',source_time_ms:now,final_minute:{server_time_ms:now}})});

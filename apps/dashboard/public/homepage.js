@@ -115,7 +115,7 @@ async function refresh(g){
 async function loadHistory(g){
  if(historyFlight||!active||g!==generation)return;const flight={controller:new AbortController()};historyFlight=flight;const deadline=setTimeout(()=>flight.controller.abort(),12000);
  await Promise.allSettled(symbols.map(async a=>{
-  try{const r=await fetch(`/api/outcomes?asset=${a}`,{signal:flight.controller.signal});if(!r.ok)throw Error();const data=await r.json();if(!active||g!==generation)return;archived[a]=data.contracts||[];text(`home-history-state-${a}`,data.status==='available'?'Last 12 completed windows':'Archive unavailable');}
+  try{const r=await fetch(`/api/outcomes?asset=${a}&view=recent`,{signal:flight.controller.signal});if(!r.ok)throw Error();const data=await r.json();if(!active||g!==generation)return;archived[a]=data.contracts||[];text(`home-history-state-${a}`,data.status==='available'?'Last 12 completed windows':'Archive unavailable');}
   catch{if(active&&g===generation)text(`home-history-state-${a}`,'Archive unavailable');}
  }));clearTimeout(deadline);if(historyFlight===flight)historyFlight=null;
  if(!active||g!==generation)return;history();historyTimer=setTimeout(()=>loadHistory(g),document.hidden?180000:60000);

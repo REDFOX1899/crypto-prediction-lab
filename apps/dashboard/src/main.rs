@@ -15,7 +15,7 @@ mod stream;
 use assets::{Asset, Selection};
 use axum::{
     Json, Router,
-    extract::{Query, Request, State},
+    extract::{MatchedPath, Query, Request, State},
     http::{StatusCode, header},
     middleware::{self, Next},
     response::{
@@ -164,15 +164,37 @@ async fn feeds(State(state): State<AppState>) -> impl IntoResponse {
         Json(serde_json::json!({"feeds":feeds,"delivery":"polled","interval_seconds":2})),
     )
 }
+#[derive(Deserialize)]
+struct OutcomeSelection {
+    #[serde(default)]
+    asset: Asset,
+    #[serde(default)]
+    view: OutcomeView,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+enum OutcomeView {
+    #[default]
+    Full,
+    Recent,
+}
+
 async fn outcome_board(
     State(state): State<AppState>,
-    Query(selection): Query<Selection>,
+    Query(selection): Query<OutcomeSelection>,
 ) -> Response {
     let Some(archive) = &state.archive else {
         return Json(serde_json::json!({"status":"not_configured","contracts":[]})).into_response();
     };
     match archive.board(selection.asset).await {
-        Ok(board) => ([(header::CACHE_CONTROL, "public, max-age=30")], Json(board)).into_response(),
+        Ok(board) => {
+            let headers = [(header::CACHE_CONTROL, "public, max-age=30")];
+            match selection.view {
+                OutcomeView::Full => (headers, Json(board)).into_response(),
+                OutcomeView::Recent => (headers, Json(board.recent())).into_response(),
+            }
+        }
         Err(_) => (
             StatusCode::BAD_GATEWAY,
             "History archive temporarily unavailable",
@@ -616,14 +638,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         polling,
         blockworks,
     };
-    let limiter = Arc::new(std::sync::Mutex::new(ApiBudget {
-        tokens: 120.0,
-        at: std::time::Instant::now(),
-    }));
-    let egress = Arc::new(std::sync::Mutex::new(EgressBudget {
-        tokens: 1024.0 * 1024.0,
-        at: std::time::Instant::now(),
-    }));
+    let budgets = Arc::new(delivery::Budgets::new());
     let app = Router::new()
         .route("/", get(index))
         .route("/api/health", get(|| async { "ok" }))
@@ -662,8 +677,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/reference", get(reference_live))
         .with_state(state)
         .layer(middleware::from_fn(move |request: Request, next: Next| {
-            let limiter = limiter.clone();
-            let egress = egress.clone();
+            let budgets = budgets.clone();
             async move {
                 if polling && matches!(request.uri().path(), "/api/live" | "/api/reference") {
                     return (
@@ -672,15 +686,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     )
                         .into_response();
                 }
+                let route = request
+                    .extensions()
+                    .get::<MatchedPath>()
+                    .map(MatchedPath::as_str);
+                let budget = budgets.for_request(request.method(), route);
                 if polling || request.uri().path().starts_with("/api/") {
-                    let allowed = limiter
+                    let allowed = budget
                         .lock()
-                        .map(|mut budget| budget.allow(std::time::Instant::now()))
+                        .map(|mut b| b.requests.allow(std::time::Instant::now(), 1))
                         .unwrap_or(false);
                     if !allowed {
                         return (
                             StatusCode::TOO_MANY_REQUESTS,
-                            [(header::RETRY_AFTER, "3")],
+                            [
+                                (header::RETRY_AFTER, "3"),
+                                (header::CACHE_CONTROL, "no-store"),
+                            ],
                             "Please retry shortly",
                         )
                             .into_response();
@@ -704,14 +726,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         return StatusCode::BAD_GATEWAY.into_response();
                     };
                     let bytes = delivery::encode(&mut parts.headers, bytes, accepts_gzip);
-                    let allowed = egress
+                    let allowed = budget
                         .lock()
-                        .map(|mut b| b.allow(std::time::Instant::now(), bytes.len()))
+                        .map(|mut b| b.bytes.allow(std::time::Instant::now(), bytes.len()))
                         .unwrap_or(false);
                     if !allowed {
                         return (
                             StatusCode::TOO_MANY_REQUESTS,
-                            [(header::RETRY_AFTER, "30")],
+                            [
+                                (header::RETRY_AFTER, "30"),
+                                (header::CACHE_CONTROL, "no-store"),
+                            ],
                             "Shared data allowance busy. Retry shortly.",
                         )
                             .into_response();
@@ -759,88 +784,4 @@ async fn shutdown() {
     #[cfg(not(unix))]
     let terminate = std::future::pending::<()>();
     tokio::select! { _ = ctrl_c => {}, _ = terminate => {} }
-}
-
-// Bounds normal outbound bandwidth across visitors in the low-cost production mode.
-// Infrastructure requests denied before reaching the app can still be billed by Google.
-struct EgressBudget {
-    tokens: f64,
-    at: std::time::Instant,
-}
-impl EgressBudget {
-    fn allow(&mut self, now: std::time::Instant, bytes: usize) -> bool {
-        self.tokens = (self.tokens + now.saturating_duration_since(self.at).as_secs_f64() * 8192.0)
-            .min(1024.0 * 1024.0);
-        self.at = now;
-        if self.tokens < bytes as f64 {
-            return false;
-        }
-        self.tokens -= bytes as f64;
-        true
-    }
-}
-struct ApiBudget {
-    tokens: f64,
-    at: std::time::Instant,
-}
-impl ApiBudget {
-    fn allow(&mut self, now: std::time::Instant) -> bool {
-        self.tokens =
-            (self.tokens + now.saturating_duration_since(self.at).as_secs_f64() * 2.0).min(120.0);
-        self.at = now;
-        if self.tokens < 1.0 {
-            return false;
-        }
-        self.tokens -= 1.0;
-        true
-    }
-}
-#[cfg(test)]
-mod hosting_tests {
-    use super::*;
-    #[test]
-    fn compressed_page_can_load_within_the_existing_shared_allowance() {
-        let now = std::time::Instant::now();
-        let raw = axum::body::Bytes::from_static(include_bytes!("../public/index.html"));
-        let mut headers = axum::http::HeaderMap::new();
-        headers.insert(
-            header::CONTENT_TYPE,
-            axum::http::HeaderValue::from_static("text/html"),
-        );
-        let compressed = delivery::encode(&mut headers, raw.clone(), true);
-        let mut budget = EgressBudget {
-            tokens: 64.0 * 1024.0,
-            at: now,
-        };
-        assert!(!budget.allow(now, raw.len()));
-        assert!(budget.allow(now, compressed.len()));
-    }
-    #[test]
-    fn outbound_budget_limits_large_replies_and_refills() {
-        let now = std::time::Instant::now();
-        let mut b = EgressBudget {
-            tokens: 1024.0 * 1024.0,
-            at: now,
-        };
-        assert!(b.allow(now, 1024 * 1024));
-        assert!(!b.allow(now, 1));
-        assert!(b.allow(now + std::time::Duration::from_secs(1), 8192));
-        assert!(!b.allow(now + std::time::Duration::from_secs(1), 1));
-    }
-    #[test]
-    fn api_budget_replenishes_and_caps_bursts() {
-        let now = std::time::Instant::now();
-        let mut budget = ApiBudget {
-            tokens: 120.0,
-            at: now,
-        };
-        for _ in 0..120 {
-            assert!(budget.allow(now));
-        }
-        assert!(!budget.allow(now));
-        let later = now + std::time::Duration::from_secs(1);
-        assert!(budget.allow(later));
-        assert!(budget.allow(later));
-        assert!(!budget.allow(later));
-    }
 }
