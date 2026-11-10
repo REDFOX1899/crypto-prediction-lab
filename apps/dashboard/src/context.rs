@@ -15,6 +15,7 @@ pub struct Context {
     http: reqwest::Client,
     archive: Option<Arc<Archive>>,
     cache: Mutex<Option<(Instant, Value)>>,
+    research_cache: Mutex<Option<(Instant, Value)>>,
     collecting: Mutex<()>,
 }
 impl Context {
@@ -25,6 +26,7 @@ impl Context {
                 .build()?,
             archive,
             cache: Mutex::new(None),
+            research_cache: Mutex::new(None),
             collecting: Mutex::new(()),
         }))
     }
@@ -39,8 +41,30 @@ impl Context {
         if let Some(a) = &self.archive
             && let Ok(Some(latest)) = a.context_get().await
         {
-            result = json!({"status":"available","latest":latest,"history":a.context_recent().await.unwrap_or_default()});
+            result = json!({"status":"available","latest":latest,"history":a.context_recent(24).await.unwrap_or_default()});
         }
+        *cache = Some((Instant::now(), result.clone()));
+        result
+    }
+    /// A bounded research projection; does not call the provider or collect data.
+    pub async fn research_board(&self) -> Value {
+        let mut cache = self.research_cache.lock().await;
+        if let Some((at, value)) = &*cache
+            && at.elapsed() < Duration::from_secs(300)
+        {
+            return value.clone();
+        }
+        let now = Utc::now();
+        let result = if let Some(archive) = &self.archive {
+            match archive.context_recent(288).await {
+                Ok(rows) => {
+                    json!({"status":"available","history":research_rows(rows,now),"fetched_at":now.to_rfc3339(),"horizon_hours":24})
+                }
+                Err(_) => json!({"status":"unavailable","history":[]}),
+            }
+        } else {
+            json!({"status":"not_configured","history":[]})
+        };
         *cache = Some((Instant::now(), result.clone()));
         result
     }
@@ -141,6 +165,36 @@ impl Context {
         Ok(json!({"status":if complete {"collected"}else{"partial"},"assets":3}))
     }
 }
+fn research_rows(rows: Vec<Value>, now: DateTime<Utc>) -> Vec<Value> {
+    rows.into_iter()
+        .take(288)
+        .filter_map(|row| {
+            let at = row["at"].as_str()?;
+            let timestamp = DateTime::parse_from_rfc3339(at).ok()?.timestamp();
+            if timestamp > now.timestamp() || timestamp < now.timestamp() - 86400 {
+                return None;
+            }
+            let quotes: Vec<Value> = row["quotes"]
+                .as_array()?
+                .iter()
+                .filter_map(|quote| {
+                    let symbol = quote["symbol"].as_str()?;
+                    let price = quote["price"].as_f64()?;
+                    let source = quote["source_at"].as_str()?;
+                    if !IDS.iter().any(|(_, s)| *s == symbol)
+                        || !price.is_finite()
+                        || price <= 0.0
+                        || DateTime::parse_from_rfc3339(source).is_err()
+                    {
+                        return None;
+                    }
+                    Some(json!({"symbol":symbol,"price":quote["price"],"source_at":source}))
+                })
+                .collect();
+            Some(json!({"at":at,"quotes":quotes}))
+        })
+        .collect()
+}
 fn successful(value: &Value) -> bool {
     let code = &value["status"]["error_code"];
     code.as_i64() == Some(0) || code.as_str() == Some("0")
@@ -232,6 +286,31 @@ fn normalize_extra(field: &str, v: &Value) -> Result<Value, Failure> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn research_history_bounds_time_and_projects_only_supported_price_observations() {
+        let now = Utc::now();
+        let row = |at: DateTime<Utc>| {
+            json!({"at":at.to_rfc3339(),"private_debug":"never public","quotes":[
+                {"symbol":"BTC","price":10,"source_at":at.to_rfc3339(),"extra":"not exposed"},
+                {"symbol":"DOGE","price":20,"source_at":at.to_rfc3339()},
+                {"symbol":"SOL","price":0,"source_at":at.to_rfc3339()},
+                {"symbol":"ETH","price":30,"source_at":"invalid"}
+            ]})
+        };
+        let result = research_rows(
+            vec![
+                row(now),
+                row(now - chrono::Duration::hours(25)),
+                row(now + chrono::Duration::minutes(1)),
+            ],
+            now,
+        );
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0]["quotes"].as_array().unwrap().len(), 1);
+        assert!(result[0].get("private_debug").is_none());
+        assert!(result[0]["quotes"][0].get("extra").is_none());
+        assert_eq!(research_rows(vec![row(now); 400], now).len(), 288);
+    }
     #[test]
     fn provider_success_accepts_numeric_and_string_zero_only() {
         assert!(successful(&json!({"status":{"error_code":0}})));

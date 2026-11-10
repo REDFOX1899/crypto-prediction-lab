@@ -22,7 +22,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use kalshi_client::{Client, Market, OrderBook, current_market};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, convert::Infallible, net::IpAddr, sync::Arc};
 use tokio::sync::watch;
 use tokio_stream::{StreamExt, wrappers::WatchStream};
@@ -132,6 +132,40 @@ async fn outcome_board(
             .into_response(),
     }
 }
+#[derive(Deserialize)]
+struct ArchiveSelection {
+    asset: Asset,
+    ticker: String,
+}
+async fn archived_window(
+    State(state): State<AppState>,
+    Query(selection): Query<ArchiveSelection>,
+) -> Response {
+    if !outcomes::valid_ticker(&selection.ticker, selection.asset) {
+        return (StatusCode::BAD_REQUEST, "Invalid archived market selection").into_response();
+    }
+    let Some(archive) = state.archive else {
+        return Json(serde_json::json!({"status":"not_configured","candles":[]})).into_response();
+    };
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        archive.detail(selection.asset, &selection.ticker),
+    )
+    .await
+    {
+        Ok(Ok(Some(detail))) => (
+            [(header::CACHE_CONTROL, "public, max-age=60")],
+            Json(detail),
+        )
+            .into_response(),
+        Ok(Ok(None)) => (StatusCode::NOT_FOUND, "Market not in archive").into_response(),
+        _ => (
+            StatusCode::BAD_GATEWAY,
+            "Archived quotes temporarily unavailable",
+        )
+            .into_response(),
+    }
+}
 #[derive(Clone)]
 struct CollectorState {
     archive: Arc<outcomes::Archive>,
@@ -142,6 +176,21 @@ async fn context_board(State(state): State<AppState>) -> impl IntoResponse {
         [(header::CACHE_CONTROL, "public, max-age=60")],
         Json(state.context.board().await),
     )
+}
+async fn research_context(State(state): State<AppState>) -> Response {
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        state.context.research_board(),
+    )
+    .await
+    {
+        Ok(value) => ([(header::CACHE_CONTROL, "public, max-age=60")], Json(value)).into_response(),
+        Err(_) => (
+            StatusCode::GATEWAY_TIMEOUT,
+            "Research history temporarily unavailable",
+        )
+            .into_response(),
+    }
 }
 async fn collect_context(State(state): State<CollectorState>) -> Response {
     match state.context.collect().await {
@@ -155,6 +204,18 @@ async fn collect_context(State(state): State<CollectorState>) -> Response {
                 .into_response()
         }
     }
+}
+async fn data_lab_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/data-lab.js"),
+    )
+}
+async fn data_lab_style() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/css; charset=utf-8")],
+        include_str!("../public/data-lab.css"),
+    )
 }
 async fn context_script() -> impl IntoResponse {
     (
@@ -445,7 +506,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/", get(index))
         .route("/api/health", get(|| async { "ok" }))
         .route("/api/outcomes", get(outcome_board))
+        .route("/api/archive/window", get(archived_window))
         .route("/api/context", get(context_board))
+        .route("/api/context/history", get(research_context))
+        .route("/assets/data-lab.js", get(data_lab_script))
+        .route("/assets/data-lab.css", get(data_lab_style))
         .route("/assets/market-context.js", get(context_script))
         .route("/api/combos/quote", get(combo_quote))
         .route("/api/feeds", get(feeds))

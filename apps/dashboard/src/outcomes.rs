@@ -54,6 +54,7 @@ pub struct Archive {
     auth: Mutex<Option<Auth>>,
     cache: Mutex<HashMap<Asset, (Instant, Board)>>,
     collection_lock: Mutex<()>,
+    detail_cache: Mutex<HashMap<String, (Instant, Value)>>,
 }
 impl Archive {
     pub fn from_env() -> Result<Option<Arc<Self>>, Failure> {
@@ -80,6 +81,7 @@ impl Archive {
             auth: Mutex::new(None),
             cache: Mutex::new(HashMap::new()),
             collection_lock: Mutex::new(()),
+            detail_cache: Mutex::new(HashMap::new()),
         })))
     }
     async fn token(&self) -> Result<String, Failure> {
@@ -134,8 +136,8 @@ impl Archive {
         }
         Ok(())
     }
-    pub(crate) async fn context_recent(&self) -> Result<Vec<Value>, Failure> {
-        let rows: Vec<Value> = self.http.post(format!("{}:runQuery", self.documents)).bearer_auth(self.token().await?).json(&json!({"structuredQuery":{"select":{"fields":[{"fieldPath":"payload"}]},"from":[{"collectionId":"cmc_samples"}],"orderBy":[{"field":{"fieldPath":"captured_at"},"direction":"DESCENDING"}],"limit":24}})).send().await?.error_for_status()?.json().await?;
+    pub(crate) async fn context_recent(&self, limit: usize) -> Result<Vec<Value>, Failure> {
+        let rows: Vec<Value> = self.http.post(format!("{}:runQuery", self.documents)).bearer_auth(self.token().await?).json(&json!({"structuredQuery":{"select":{"fields":[{"fieldPath":"payload"}]},"from":[{"collectionId":"cmc_samples"}],"orderBy":[{"field":{"fieldPath":"captured_at"},"direction":"DESCENDING"}],"limit":limit.clamp(1,288)}})).send().await?.error_for_status()?.json().await?;
         rows.iter()
             .filter_map(|r| {
                 r.pointer("/document/fields/payload/stringValue")
@@ -184,6 +186,55 @@ impl Archive {
         };
         cache.insert(asset, (Instant::now(), board.clone()));
         Ok(board)
+    }
+    pub async fn detail(&self, asset: Asset, ticker: &str) -> Result<Option<Value>, Failure> {
+        if !valid_ticker(ticker, asset) {
+            return Err("Invalid archive selection".into());
+        }
+        let mut cache = self.detail_cache.lock().await;
+        if let Some((at, value)) = cache.get(ticker)
+            && at.elapsed() < Duration::from_secs(300)
+        {
+            return Ok(Some(value.clone()));
+        }
+        let mut response = self
+            .http
+            .get(format!(
+                "{}/{}/{ticker}",
+                self.documents,
+                Self::collection(asset)
+            ))
+            .bearer_auth(self.token().await?)
+            .send()
+            .await?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        response.error_for_status_ref()?;
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response.chunk().await? {
+            if bytes.len() + chunk.len() > 2 * 1024 * 1024 {
+                return Err("Archived response too large".into());
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        let doc: Value = serde_json::from_slice(&bytes)?;
+        let payload: Value = serde_json::from_str(
+            doc.pointer("/fields/payload/stringValue")
+                .and_then(Value::as_str)
+                .ok_or("Missing archived payload")?,
+        )?;
+        let detail = normalized_detail(&payload, asset, ticker, Utc::now().timestamp())?;
+        if cache.len() >= 32
+            && let Some(key) = cache
+                .iter()
+                .min_by_key(|(_, (at, _))| *at)
+                .map(|(k, _)| k.clone())
+        {
+            cache.remove(&key);
+        }
+        cache.insert(ticker.into(), (Instant::now(), detail.clone()));
+        Ok(Some(detail))
     }
     pub async fn collect(&self) -> Result<usize, Failure> {
         // Avoid overlapping work per instance; writes use stable native ticker IDs.
@@ -317,6 +368,34 @@ impl Archive {
         Ok(())
     }
 }
+fn normalized_detail(
+    payload: &Value,
+    asset: Asset,
+    ticker: &str,
+    now: i64,
+) -> Result<Value, Failure> {
+    let market = &payload["market"];
+    if !valid_ticker(ticker, asset)
+        || market["ticker"].as_str() != Some(ticker)
+        || !matches!(market["result"].as_str(), Some("yes" | "no"))
+    {
+        return Err("Mismatched archive identity".into());
+    }
+    let open = market["open_time"].as_str().ok_or("Missing open time")?;
+    let close = market["close_time"].as_str().ok_or("Missing close time")?;
+    let start = DateTime::parse_from_rfc3339(open)?.timestamp();
+    let end = DateTime::parse_from_rfc3339(close)?.timestamp();
+    if end > now || end - start != 900 {
+        return Err("Not a completed 15-minute window".into());
+    }
+    let candles =
+        crate::history::archived_candles(payload["candlesticks"].clone(), ticker, start, end)?;
+    Ok(
+        json!({"status":"available","asset":asset,"ticker":ticker,"open_time":open,"close_time":close,
+        "result":market["result"],"candles":candles,"source":"Archived Kalshi one-minute YES ask quotes",
+        "updated_time":market["updated_time"]}),
+    )
+}
 pub fn valid_ticker(ticker: &str, asset: Asset) -> bool {
     ticker.starts_with(&format!("{}-", asset.info().series))
         && ticker.len() < 90
@@ -391,6 +470,51 @@ async fn kalshi_json(
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn archived_payload() -> Value {
+        json!({"market":{"ticker":"KXBTC15M-TEST","result":"yes","open_time":"2026-11-09T20:00:00Z","close_time":"2026-11-09T20:15:00Z"},
+        "candlesticks":{"ticker":"KXBTC15M-TEST","candlesticks":[
+            {"end_period_ts":1794254460_i64,"yes_ask":{"open_dollars":"0.40","high_dollars":"0.60","low_dollars":"0.30","close_dollars":"0.50"}}
+        ]},"private_debug":"must never reach the public API"})
+    }
+    #[test]
+    fn archive_detail_rejects_wrong_identity_future_void_and_wrong_duration() {
+        let payload = archived_payload();
+        let now = DateTime::parse_from_rfc3339("2026-11-09T21:00:00Z")
+            .unwrap()
+            .timestamp();
+        assert!(normalized_detail(&payload, Asset::Eth, "KXBTC15M-TEST", now).is_err());
+        assert!(normalized_detail(&payload, Asset::Btc, "KXBTC15M-OTHER", now).is_err());
+        assert!(normalized_detail(&payload, Asset::Btc, "KXBTC15M-TEST", now - 3600).is_err());
+        for (key, value) in [("result", "void"), ("close_time", "2026-11-09T20:30:00Z")] {
+            let mut bad = payload.clone();
+            bad["market"][key] = json!(value);
+            assert!(normalized_detail(&bad, Asset::Btc, "KXBTC15M-TEST", now).is_err());
+        }
+        let mut bad = payload.clone();
+        bad["candlesticks"]["ticker"] = json!("KXETH15M-TEST");
+        assert!(normalized_detail(&bad, Asset::Btc, "KXBTC15M-TEST", now).is_err());
+    }
+    #[test]
+    fn archive_detail_returns_only_valid_in_window_quotes_and_no_raw_payload() {
+        let mut payload = archived_payload();
+        let start = DateTime::parse_from_rfc3339("2026-11-09T20:00:00Z")
+            .unwrap()
+            .timestamp();
+        let good = json!({"end_period_ts":start+60,"yes_ask":{"open_dollars":"0.40","high_dollars":"0.60","low_dollars":"0.30","close_dollars":"0.50"}});
+        let mut outside = good.clone();
+        outside["end_period_ts"] = json!(start);
+        let mut impossible = good.clone();
+        impossible["yes_ask"]["high_dollars"] = json!("0.1");
+        let mut incomplete = good.clone();
+        incomplete["yes_ask"]["close_dollars"] = Value::Null;
+        payload["candlesticks"]["candlesticks"] =
+            json!([outside, good.clone(), good, impossible, incomplete]);
+        let result = normalized_detail(&payload, Asset::Btc, "KXBTC15M-TEST", start + 900).unwrap();
+        assert_eq!(result["candles"].as_array().unwrap().len(), 1);
+        assert_eq!(result["candles"][0]["time"], start);
+        assert!(result.get("private_debug").is_none());
+        assert!(result.get("market").is_none());
+    }
     #[test]
     fn hindsight_entry_uses_winning_ask_and_excludes_outside_minutes_and_zero() {
         let bars = vec![

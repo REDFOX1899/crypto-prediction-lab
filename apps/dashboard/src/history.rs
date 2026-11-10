@@ -122,6 +122,23 @@ fn market_candles(items: Vec<MarketCandle>, now: i64) -> Vec<Candle> {
     }
     candles.into_values().collect()
 }
+/// Normalize stored quote candles without inventing empty minutes or exposing raw payloads.
+pub(crate) fn archived_candles(
+    value: serde_json::Value,
+    ticker: &str,
+    start: i64,
+    end: i64,
+) -> Result<Vec<Candle>, &'static str> {
+    let envelope: MarketEnvelope =
+        serde_json::from_value(value).map_err(|_| "Invalid archived candles")?;
+    if envelope.ticker != ticker || end - start != 900 {
+        return Err("Mismatched archived window");
+    }
+    Ok(market_candles(envelope.candlesticks, end)
+        .into_iter()
+        .filter(|c| c.time >= start && c.time + 60 <= end)
+        .collect())
+}
 pub struct HistoryService {
     asset: Asset,
     http: reqwest::Client,

@@ -21,6 +21,12 @@ Crypto Prediction Lab is a public, read-only research dashboard for people follo
 
 **CoinMarketCap context**, below the homepage market watch: aggregate prices; 1h/24h/7d changes; market caps; rolling 24-hour volumes; global metrics; BTC dominance; dated Fear & Greed; sampled-price SVG history. This is a separate source, not the contract's CF settlement index. Historical samples begin with collection; no earlier ticks are fabricated.
 
+## Local development after the release
+
+Branch `codex/data-lab` adds a fourth Data Lab workspace, aligned outcomes and coverage, shared CMC comparisons, source/sample inspection and observation export. New read-only routes normalize archived minute quotes and project up to 24 hours of existing CMC history. This work is local and uncommitted; the deployed release above remains unchanged. The current handoff has verification details.
+
+Blockworks is being evaluated using the owner's promotional credits. Catalog access returned HTTP 403. No market data was collected or published. Long-term storage, public display and model use require confirmed account rights; the collection/storage proposal is in `blockworks-data-plan.md`. Coinbase remains on hold.
+
 ## Stack and source map
 
 - Cargo workspace: `apps/dashboard`, `apps/market-cli`, `crates/kalshi-client`.
@@ -56,6 +62,7 @@ The app has a $40 monthly budget alert, not a hard cap. Preserve resource/egress
 ## Where to look next
 
 - Latest handoff and pending work: `SESSION_HANDOFF.md`.
+- Blockworks access findings, credit plan and proposed archive: `blockworks-data-plan.md`.
 - Suggested, unapproved next features: `roadmap.md`.
 - CMC schema, quotas and release checks: `coinmarketcap-context.md`.
 - UI semantics: `focus-ui-design.md`, `final-minute.md`, `combo-lab.md`.

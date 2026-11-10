@@ -17,6 +17,8 @@
 *.parquet
 *.ndjson
 *.log
+__pycache__/
+*.pyc
 *.p8
 *.p12
 .terraform/
