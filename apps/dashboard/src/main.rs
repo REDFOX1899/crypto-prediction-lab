@@ -284,7 +284,10 @@ async fn collect_minute_ten(State(state): State<CollectorState>) -> Response {
     .await
     {
         Ok(Ok(result)) => Json(result).into_response(),
-        Ok(Err(_)) => (StatusCode::BAD_GATEWAY, "Minute 10 collection failed").into_response(),
+        Ok(Err(error)) => {
+            eprintln!("Minute 10 collection failed: {error}");
+            (StatusCode::BAD_GATEWAY, "Minute 10 collection failed").into_response()
+        }
         Err(_) => (
             StatusCode::GATEWAY_TIMEOUT,
             "Minute 10 collection deadline reached",

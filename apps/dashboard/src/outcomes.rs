@@ -128,7 +128,11 @@ impl Archive {
                 .as_str()
                 .ok_or("Invalid asset")?
                 .to_owned();
-            let name = format!("{}/minute_ten_v1/s{open}_{symbol}", self.documents);
+            let name = format!(
+                "{}/minute_ten_v1/s{open}_{symbol}",
+                self.documents
+                    .trim_start_matches("https://firestore.googleapis.com/v1/")
+            );
             let response = self.http.post(format!("{}:commit",self.documents)).bearer_auth(self.token().await?)
                 .json(&json!({"writes":[{"update":{"name":name,"fields":{"payload":{"stringValue":serde_json::to_string(&observation)?}}},
                 "currentDocument":{"exists":false}}]})).send().await?;
