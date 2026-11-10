@@ -14,11 +14,11 @@ CoinMarketCap adds a separately labeled market-context section with shared sched
 
 Direct CF Benchmarks and Coinbase integrations and durable high-frequency event capture are proposed in the data-engineering plan; they are not yet implemented.
 
-## Data Lab (local development)
+## Data Lab
 
 The new `/?view=data` workspace compares aligned BTC/ETH/SOL official outcomes, records coverage, and charts shared CMC returns and correlations with sample counts. Select an outcome cell to inspect the contract summaries, then choose an asset for its stored one-minute YES-ask OHLC. Exact values and missing minutes remain visible. Export observations as JSON for inspection; the export is not a point-in-time training dataset.
 
-`GET /api/context/history` reads up to 288 saved CMC samples from the last 24 hours, with a five-minute shared cache. It does not poll CMC or write to storage. `GET /api/archive/window?asset=BTC&ticker=...` reads one validated archived market, returns normalized quote candles only, and caches at most 32 windows for five minutes. These routes use the existing configured archive identity. They are not deployed yet.
+`GET /api/context/history` reads up to 288 saved CMC samples from the last 24 hours, with a five-minute shared cache. It does not poll CMC or write to storage. `GET /api/archive/window?asset=BTC&ticker=...` reads one validated archived market, returns normalized quote candles only, and caches at most 32 windows for five minutes. These routes use the existing configured archive identity. They are deployed on the public dashboard.
 
 For a visual preview using the currently deployed public outcomes and short CMC history, without cloud credentials:
 

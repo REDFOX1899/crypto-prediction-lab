@@ -83,3 +83,7 @@ A complete 30-day period would contain 2,880 shared quarter-hour windows and at 
 - `scripts/preview-data-lab.py`: loopback visual preview against existing public API responses. It intentionally cannot read private stored minute-candle payloads. The Rust archive route needs the application's configured database identity for an end-to-end populated cloud check.
 
 Next: obtain confirmed API access and permitted uses, then measure a tightly bounded collection pilot. No collection schedule or deployment should be inferred from this plan.
+
+## Subsequent Data Lab publication
+
+The owner subsequently requested publication. Application release `63c67ac` was pushed to GitHub and deployed as public revision `crypto-prediction-lab-00016-mer`. Real archived Kalshi minute quotes and existing CMC history passed deployed checks. This does not activate the proposed Blockworks collector or archive: access remains unverified after HTTP 403, and no Blockworks observations, subscriptions or new cloud collection were added.

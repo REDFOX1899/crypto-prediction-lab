@@ -58,3 +58,13 @@ No unrelated service settings or project-wide billing controls were changed. No 
 ## Superseding runtime plan — 8 November 2026
 
 The combo-book release changes production to 0.25 vCPU, concurrency one, first-generation request billing and short shared polling. Previous 1-vCPU/SSE cost estimates above describe the earlier release. See cost-controls.md for the new $40 target, detailed limitations, label-filtered alert and resource settings. The current health endpoint is /api/health. Durable history and combo research are now implemented; older launch scope statements above are historical.
+
+## Data Lab release — 9 November 2026
+
+Application source `63c67ac` is published to GitHub main. Cloud Build `9be3254e-d6ae-4a13-8360-bd7433b64466` produced image tag `data-lab-20261109-r2` and digest `sha256:8b2d525eea3b187853d4b2d51663d94f50e121ec8194f180151ee7b672f387bd`. Public revision `crypto-prediction-lab-00016-mer` serves 100% of traffic. The Data Lab opens at `/?view=data`.
+
+The revision was tested through a temporary tag before switching public traffic. Both the candidate and public URL passed real archive/history, source-identity and read-only route checks. All three assets returned 15 stored minute candles for the sampled completed window. The CMC history query returned 17 actual saved samples; it supports a bounded 24-hour horizon but does not manufacture older history.
+
+Runtime configuration and access were preserved, including existing secrets, service identity, 0.25 CPU / 256 MiB, concurrency one, max one, scale to zero and request billing. The private collector remains on revision `crypto-history-collector-00005-msp`. No new provider subscriptions, collection schedules or permissions were enabled. Temporary revision tag was removed. See SESSION_HANDOFF.md for exact checks and the remaining Blockworks access limitation.
+
+The final release includes response compression after public browser testing exposed the uncompressed outbound-budget bottleneck. Gzip-capable clients receive smaller bodies, and the same outbound budget accounts for encoded bytes. Public HTML measured 36,736 bytes on the wire versus 107,948 decoded. The live Data Lab and archived quote charts were confirmed in the browser after the correction. The owner allowed a GCP capacity increase if needed; none was required.

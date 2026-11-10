@@ -9,7 +9,7 @@ Crypto Prediction Lab is a public, read-only research dashboard for people follo
 - Repository: https://github.com/REDFOX1899/crypto-prediction-lab
 - Website: https://crypto-prediction-lab-308289525742.us-central1.run.app/
 - Working directory: the Git checkout attached to the Crypto Prediction Lab project. An older Desktop checkout also exists; use one active checkout at a time. The current project folder was initially empty and was populated from GitHub during session setup.
-- Application release commit: `66e3bf7` (CoinMarketCap integration). Later documentation commits do not imply a new deployed image.
+- Application release commit: `63c67ac` (Data Lab, archived quote inspection and extended CMC history). Later documentation commits do not imply a new deployed image.
 
 ## Implemented product
 
@@ -21,9 +21,9 @@ Crypto Prediction Lab is a public, read-only research dashboard for people follo
 
 **CoinMarketCap context**, below the homepage market watch: aggregate prices; 1h/24h/7d changes; market caps; rolling 24-hour volumes; global metrics; BTC dominance; dated Fear & Greed; sampled-price SVG history. This is a separate source, not the contract's CF settlement index. Historical samples begin with collection; no earlier ticks are fabricated.
 
-## Local development after the release
+## Data Lab release
 
-Branch `codex/data-lab` adds a fourth Data Lab workspace, aligned outcomes and coverage, shared CMC comparisons, source/sample inspection and observation export. New read-only routes normalize archived minute quotes and project up to 24 hours of existing CMC history. This work is local and uncommitted; the deployed release above remains unchanged. The current handoff has verification details.
+Branch `codex/data-lab` adds a fourth Data Lab workspace, aligned outcomes and coverage, shared CMC comparisons, source/sample inspection and observation export. New read-only routes normalize archived minute quotes and project up to 24 hours of existing CMC history. The owner authorized publication, and this release is now on GitHub main and deployed. Public responses use fast gzip before outbound-byte accounting to prevent large page assets being crowded out by polling; existing bandwidth/resource limits remain. Real archived minute quotes and the bounded CMC history route passed public checks. The current handoff has verification details.
 
 Blockworks is being evaluated using the owner's promotional credits. Catalog access returned HTTP 403. No market data was collected or published. Long-term storage, public display and model use require confirmed account rights; the collection/storage proposal is in `blockworks-data-plan.md`. Coinbase remains on hold.
 
@@ -31,7 +31,7 @@ Blockworks is being evaluated using the owner's promotional credits. Catalog acc
 
 - Cargo workspace: `apps/dashboard`, `apps/market-cli`, `crates/kalshi-client`.
 - Axum/Tokio/Reqwest backend. Main routes/role selection: `apps/dashboard/src/main.rs`.
-- Asset allowlist: `assets.rs`. Kalshi stream/book/reference state: `stream.rs`, `order_book.rs`, `reference.rs`. Final-minute observations: `final_minute.rs`. Chart history: `history.rs`. Durable settled outcomes: `outcomes.rs`. Combo matching: `combos.rs`. CMC collection/quota normalization: `context.rs`.
+- Asset allowlist: `assets.rs`. Kalshi stream/book/reference state: `stream.rs`, `order_book.rs`, `reference.rs`. Final-minute observations: `final_minute.rs`. Chart history: `history.rs`. Public response compression: `delivery.rs`. Durable settled outcomes: `outcomes.rs`. Combo matching: `combos.rs`. CMC collection/quota normalization: `context.rs`.
 - Frontend: `apps/dashboard/public/index.html`, `homepage.js`, `home-visuals.js`, `feed-client.js`, `market-context.js`, `theme.js`, `focus.css` and the existing workspace modules. No frontend framework is required.
 - Source priority: Kalshi for rules/targets/books/official results; CF publications via Kalshi for reference observations; CMC for broad aggregate context. An exchange price or CMC quote cannot substitute for the settlement reference.
 
@@ -39,9 +39,9 @@ Blockworks is being evaluated using the owner's promotional credits. Catalog acc
 
 Google Cloud project `gitunderstand`, number `308289525742`, region `us-central1`. This is a shared project; do not modify unrelated services or project-wide billing/IAM.
 
-- Public service `crypto-prediction-lab`: revision `crypto-prediction-lab-00012-jx6` at the last release. Dashboard identity has database viewer access, and retains only its Kalshi secret access.
+- Public service `crypto-prediction-lab`: revision `crypto-prediction-lab-00016-mer` at the last release. Dashboard identity has database viewer access, and retains only its Kalshi secret access.
 - Private service `crypto-history-collector`: revision `crypto-history-collector-00005-msp`. Collector identity writes only the dedicated database and reads the dedicated CMC key. No Kalshi trading credentials are added.
-- Image tag `cmc-context-20261109-r3`; successful build `3d8f5edc-fd30-467a-9adc-3c39813d9040`.
+- Public image tag `data-lab-20261109-r2`; successful build `9be3254e-d6ae-4a13-8360-bd7433b64466`, digest `sha256:8b2d525eea3b187853d4b2d51663d94f50e121ec8194f180151ee7b672f387bd`. The private collector remains on its previous CMC release.
 - Both services retain request-based CPU, first-generation execution, 0.25 vCPU, 256 MiB, concurrency one, min zero, max one and startup CPU boost off. Dashboard timeout 30 seconds; collector timeout 60 seconds. These settings do not guarantee a particular latency or exact monthly bill.
 - Named Firestore database `crypto-prediction-lab`. Default database is unrelated. `contracts_btc`, `contracts_eth`, `contracts_sol` retain settled market records/minute candles and summaries. `cmc_context/latest` holds normalized current context; `cmc_samples` holds combined three-asset sampled observations.
 - Existing private history schedule: `crypto-history-quarter-hour`, minutes 2/17/32/47 UTC. New private CMC schedule: `crypto-market-context`, every five minutes. Both use the existing dedicated scheduler identity and service-level invocation rights.
