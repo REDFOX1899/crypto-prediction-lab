@@ -2,6 +2,7 @@
 use crate::assets::Asset;
 use chrono::{DateTime, Utc};
 use kalshi_client::{Client, current_market};
+use rust_decimal::Decimal;
 use serde_json::{Value, json};
 
 pub fn slot(now: i64) -> Option<i64> {
@@ -89,11 +90,6 @@ impl Phase {
     }
 }
 
-pub fn opening_slot(now: i64) -> Option<i64> {
-    let open = now.div_euclid(900) * 900;
-    (now - open < 55).then_some(open)
-}
-
 fn matches_window(market: &kalshi_client::Market, asset: Asset, open: i64) -> bool {
     market
         .ticker
@@ -103,56 +99,145 @@ fn matches_window(market: &kalshi_client::Market, asset: Asset, open: i64) -> bo
         && matches!(market.status.as_str(), "open" | "active")
 }
 
-pub async fn capture_cycle(client: &Client, asset: Asset, open: i64, phase: Phase) -> Value {
+pub fn valid_hint(asset: Asset, ticker: &str) -> bool {
+    ticker.starts_with(&format!("{}-", asset.info().series))
+        && ticker.len() <= 96
+        && ticker
+            .bytes()
+            .all(|c| c.is_ascii_alphanumeric() || c == b'-')
+}
+
+pub async fn capture_cycle(
+    client: &Client,
+    asset: Asset,
+    open: i64,
+    phase: Phase,
+    hint: Option<&str>,
+) -> Value {
     let started = Utc::now();
     let mut times = json!({"metadata_request_started_at":null,"metadata_received_at":null,
         "book_request_started_at":null,"book_received_at":null,"metadata_attempts":[]});
-    let budget = if phase == Phase::Opening { 8 } else { 4 };
-    let result = tokio::time::timeout(std::time::Duration::from_secs(budget), async {
+    let budget_ms = match phase {
+        Phase::Opening => ((open + 28) * 1000 - started.timestamp_millis()).clamp(0, 24_000),
+        Phase::ExecutionCandidate => 4_000,
+    };
+    let capture = async {
         if started.timestamp() < open + phase.offset()
             || started.timestamp() >= open + phase.deadline()
         {
             return Err("outside_phase");
         }
-        // Discovery can lag rollover. Retry within the phase budget, retaining
-        // every attempt's timing. A stored first attempt is never replaced.
-        let attempts = if phase == Phase::Opening { 5 } else { 2 };
-        let mut selected = None;
+        if hint.is_some_and(|s| !valid_hint(asset, s)) {
+            return Err("invalid_ticker_hint");
+        }
+        let mut ticker = hint.map(str::to_owned);
+        let attempts = if phase == Phase::Opening { 24 } else { 2 };
+        let mut last_error = "market_unavailable";
         for attempt in 0..attempts {
             if Utc::now().timestamp() >= open + phase.deadline() {
                 break;
             }
             times["metadata_request_started_at"] = json!(Utc::now());
             times["metadata_received_at"] = Value::Null;
-            let response = client.open_markets(asset.info().series).await;
-            times["metadata_received_at"] = json!(Utc::now());
-            let succeeded = response.is_ok();
-            let market_count = response.as_ref().map_or(0, Vec::len);
-            if let Ok(markets) = response {
-                selected = markets.into_iter().find(|m| matches_window(m, asset, open));
+            times["book_request_started_at"] = Value::Null;
+            times["book_received_at"] = Value::Null;
+            let response = tokio::time::timeout(std::time::Duration::from_secs(2), async {
+                if ticker.is_none() {
+                    let markets = client.window_markets(asset.info().series, open).await?;
+                    ticker = markets
+                        .into_iter()
+                        .find(|m| {
+                            m.open_time.timestamp() == open
+                                && m.close_time.timestamp() == open + 900
+                                && valid_hint(asset, &m.ticker)
+                        })
+                        .map(|m| m.ticker);
+                }
+                match ticker.as_deref() {
+                    Some(t) => client.market(t).await.map(Some),
+                    None => Ok(None),
+                }
+            })
+            .await;
+            if response.is_ok() {
+                times["metadata_received_at"] = json!(Utc::now());
+            }
+            let succeeded = matches!(&response, Ok(Ok(_)));
+            let market = match response {
+                Ok(Ok(m)) => m,
+                _ => None,
+            };
+            let matched = market
+                .as_ref()
+                .is_some_and(|m| matches_window(m, asset, open));
+            let ready = market.as_ref().is_some_and(|m| {
+                matched
+                    && m.floor_strike.is_some_and(|v| v > Decimal::ZERO)
+                    && m.strike_type.as_deref() == Some("greater_or_equal")
+            });
+            let mut observation = None;
+            if ready && Utc::now().timestamp() < open + phase.deadline() {
+                let market = market.expect("ready metadata");
+                times["book_request_started_at"] = json!(Utc::now());
+                let book = tokio::time::timeout(
+                    std::time::Duration::from_secs(2),
+                    client.order_book(&market.ticker),
+                )
+                .await;
+                if book.is_ok() {
+                    times["book_received_at"] = json!(Utc::now());
+                }
+                match book {
+                    Ok(Ok(book)) => {
+                        let snapshot = crate::order_book::Snapshot {
+                            market_ticker: market.ticker.clone(),
+                            yes_dollars_fp: book.yes_dollars.clone(),
+                            no_dollars_fp: book.no_dollars.clone(),
+                        };
+                        match crate::order_book::research_view(snapshot) {
+                            Ok(_) => {
+                                observation = Some(
+                                    json!({"ticker":market.ticker,"market_status":market.status,
+                                "open_time":market.open_time,"close_time":market.close_time,
+                                "target":market.floor_strike,"target_text":market.yes_sub_title,"strike_type":market.strike_type,
+                                "yes_bids":book.yes_dollars,"no_bids":book.no_dollars}),
+                                )
+                            }
+                            Err(reason) => last_error = reason,
+                        }
+                    }
+                    _ => last_error = "book_unavailable",
+                }
+            } else {
+                last_error = if !succeeded {
+                    "metadata_unavailable"
+                } else if matched {
+                    "metadata_not_ready"
+                } else {
+                    "market_unavailable"
+                };
             }
             let attempt_times = json!({"request_started_at":times["metadata_request_started_at"],
-                "received_at":times["metadata_received_at"],"request_succeeded":succeeded,
-                "market_count":market_count,"matched_window":selected.is_some()});
-            times["metadata_attempts"].as_array_mut().expect("attempt list").push(attempt_times);
-            if selected.is_some() || attempt == attempts - 1 {
-                break;
+                "received_at":times["metadata_received_at"],"completed_at":Utc::now(),
+                "request_succeeded":succeeded,"matched_window":matched,"metadata_ready":ready,
+                "ticker":ticker,"book_request_started_at":times["book_request_started_at"],
+                "book_received_at":times["book_received_at"],"usable":observation.is_some(),
+                "reason":if observation.is_some(){None}else{Some(last_error)}});
+            times["metadata_attempts"]
+                .as_array_mut()
+                .expect("attempt list")
+                .push(attempt_times);
+            if let Some(value) = observation {
+                return Ok(value);
             }
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            if attempt + 1 < attempts {
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
         }
-        let market = selected.ok_or("market_unavailable")?;
-        if Utc::now().timestamp() >= open + phase.deadline() {
-            return Err("phase_deadline");
-        }
-        times["book_request_started_at"] = json!(Utc::now());
-        let book = client.order_book(&market.ticker).await;
-        times["book_received_at"] = json!(Utc::now());
-        let book = book.map_err(|_| "book_unavailable")?;
-        Ok(json!({"ticker":market.ticker,"market_status":market.status,
-            "open_time":market.open_time,"close_time":market.close_time,
-            "target":market.floor_strike,"target_text":market.yes_sub_title,
-            "strike_type":market.strike_type,"yes_bids":book.yes_dollars,"no_bids":book.no_dollars}))
-    }).await;
+        Err(last_error)
+    };
+    let result =
+        tokio::time::timeout(std::time::Duration::from_millis(budget_ms as u64), capture).await;
     let received = Utc::now();
     let (observation, error) = match result {
         Ok(Ok(value)) => (Some(value), None),
@@ -168,13 +253,11 @@ pub async fn capture_cycle(client: &Client, asset: Asset, open: i64, phase: Phas
     };
     json!({"schema_version":1,"asset":asset,"phase":phase.name(),
         "open_time":DateTime::from_timestamp(open,0),"close_time":DateTime::from_timestamp(open+900,0),
-        "intended_at":DateTime::from_timestamp(open+phase.offset(),0),
-        "request_started_at":started,"received_at":received,"component_times":times,
-        "seconds_after_intended":(received.timestamp_millis()-(open+phase.offset())*1000) as f64/1000.,
-        "status":status,"error":error,"observation":observation,
-        "decision_id":null,"decision_committed_at":null,
-        "source":"Kalshi public REST; metadata and order book are sequential, non-atomic; provider event time unknown",
-        "availability":"No earlier than actual receipt and durable document creation. Execution candidate is unlinked to any decision; not evidence of a fill."})
+        "intended_at":DateTime::from_timestamp(open+phase.offset(),0),"request_started_at":started,"received_at":received,
+        "component_times":times,"seconds_after_intended":(received.timestamp_millis()-(open+phase.offset())*1000) as f64/1000.,
+        "status":status,"error":error,"observation":observation,"decision_id":null,"decision_committed_at":null,
+        "source":"Kalshi public REST. Window-specific discovery and direct metadata. Sequential non-atomic book read. Provider event time unknown.",
+        "availability":"No earlier than receipt and durable document creation. Candidate is unlinked until private decision verification."})
 }
 
 #[cfg(test)]
@@ -188,10 +271,22 @@ mod cycle_tests {
     #[test]
     fn phase_identity_and_time_windows() {
         for seconds in [0, 20, 45, 54] {
-            assert_eq!(opening_slot(1800 + seconds), Some(1800));
+            assert!(
+                crate::cycle_dispatch::PreparedCycle {
+                    open_time: 1800,
+                    ..Default::default()
+                }
+                .ready_at(1800 + seconds)
+            );
         }
         for seconds in [55, 600, 899] {
-            assert_eq!(opening_slot(1800 + seconds), None);
+            assert!(
+                !crate::cycle_dispatch::PreparedCycle {
+                    open_time: 1800,
+                    ..Default::default()
+                }
+                .ready_at(1800 + seconds)
+            );
         }
         for asset in Asset::ALL {
             let path = Phase::Opening.path(asset, 1800);
@@ -222,6 +317,12 @@ mod cycle_tests {
             .mount(&server)
             .await;
         Mock::given(method("GET"))
+            .and(path("/markets/KXBTC15M-TEST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"market":market})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
             .and(path("/markets/KXBTC15M-TEST/orderbook"))
             .respond_with(
                 ResponseTemplate::new(200).set_body_json(json!({"orderbook_fp":{
@@ -231,7 +332,7 @@ mod cycle_tests {
             .mount(&server)
             .await;
         let client = Client::with_base_url(&server.uri()).unwrap();
-        let value = capture_cycle(&client, Asset::Btc, open, Phase::Opening).await;
+        let value = capture_cycle(&client, Asset::Btc, open, Phase::Opening, None).await;
         assert_eq!(value["status"], "available");
         assert_eq!(
             value["component_times"]["metadata_attempts"]
@@ -261,17 +362,17 @@ mod cycle_tests {
     #[tokio::test]
     async fn wrong_window_is_retried_and_never_fetches_a_book() {
         let server = MockServer::start().await;
-        let open = Utc::now().timestamp() - 5;
+        let open = Utc::now().timestamp() - 46;
         let market = json!({"ticker":"KXETH15M-ROLLOVER","title":"Test","status":"active",
             "open_time":DateTime::from_timestamp(open+900,0),"close_time":DateTime::from_timestamp(open+1800,0)});
         Mock::given(method("GET"))
             .and(path("/markets"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({"markets":[market]})))
-            .expect(5)
+            .expect(2)
             .mount(&server)
             .await;
         let client = Client::with_base_url(&server.uri()).unwrap();
-        let value = capture_cycle(&client, Asset::Eth, open, Phase::Opening).await;
+        let value = capture_cycle(&client, Asset::Eth, open, Phase::ExecutionCandidate, None).await;
         assert_eq!(value["status"], "unavailable");
         assert_eq!(value["error"], "market_unavailable");
         assert!(value["observation"].is_null());
@@ -282,18 +383,18 @@ mod cycle_tests {
     async fn timed_out_retry_has_no_receipt_from_an_earlier_attempt() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
-            .and(path("/markets"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"markets":[]})))
+            .and(path("/markets/KXBTC15M-TEST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"market":{"ticker":"KXBTC15M-TEST","title":"Test","status":"initialized","open_time":DateTime::from_timestamp(Utc::now().timestamp()-46,0),"close_time":DateTime::from_timestamp(Utc::now().timestamp()+854,0)}})))
             .up_to_n_times(1)
             .expect(1)
             .mount(&server)
             .await;
         Mock::given(method("GET"))
-            .and(path("/markets"))
+            .and(path("/markets/KXBTC15M-TEST"))
             .respond_with(
                 ResponseTemplate::new(200)
                     .set_delay(std::time::Duration::from_secs(10))
-                    .set_body_json(json!({"markets":[]})),
+                    .set_body_json(json!({"market":{"ticker":"KXBTC15M-TEST","title":"Test","status":"initialized","open_time":DateTime::from_timestamp(Utc::now().timestamp()-46,0),"close_time":DateTime::from_timestamp(Utc::now().timestamp()+854,0)}})),
             )
             .with_priority(10)
             .expect(1)
@@ -303,18 +404,88 @@ mod cycle_tests {
         let value = capture_cycle(
             &client,
             Asset::Btc,
-            Utc::now().timestamp() - 5,
-            Phase::Opening,
+            Utc::now().timestamp() - 46,
+            Phase::ExecutionCandidate,
+            Some("KXBTC15M-TEST"),
         )
         .await;
-        assert_eq!(value["error"], "source_timeout");
+        assert_eq!(value["error"], "metadata_unavailable");
         assert!(value["component_times"]["metadata_received_at"].is_null());
         assert_eq!(
             value["component_times"]["metadata_attempts"]
                 .as_array()
                 .unwrap()
                 .len(),
-            1
+            2
+        );
+    }
+
+    #[tokio::test]
+    async fn waits_for_target_and_two_sided_depth_without_using_open_list() {
+        let server = MockServer::start().await;
+        let open = Utc::now().timestamp() - 5;
+        let market = json!({"ticker":"KXBTC15M-TEST","title":"Test","status":"active",
+            "open_time":DateTime::from_timestamp(open,0),"close_time":DateTime::from_timestamp(open+900,0),
+            "floor_strike":"100","strike_type":"greater_or_equal"});
+        let mut unready = market.clone();
+        unready["floor_strike"] = Value::Null;
+        Mock::given(method("GET"))
+            .and(path("/markets/KXBTC15M-TEST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"market":unready})))
+            .up_to_n_times(1)
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/markets/KXBTC15M-TEST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"market":market})))
+            .with_priority(10)
+            .expect(2)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/markets/KXBTC15M-TEST/orderbook"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"orderbook_fp":{"yes_dollars":[],"no_dollars":[]}})),
+            )
+            .up_to_n_times(1)
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/markets/KXBTC15M-TEST/orderbook"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({"orderbook_fp":{"yes_dollars":[["0.4","12"]],"no_dollars":[["0.55","7"]]}}),
+            ))
+            .with_priority(10)
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = Client::with_base_url(&server.uri()).unwrap();
+        let value = capture_cycle(
+            &client,
+            Asset::Btc,
+            open,
+            Phase::Opening,
+            Some("KXBTC15M-TEST"),
+        )
+        .await;
+        assert_eq!(value["status"], "available");
+        let attempts = value["component_times"]["metadata_attempts"]
+            .as_array()
+            .unwrap();
+        assert_eq!(attempts.len(), 3);
+        assert_eq!(attempts[0]["metadata_ready"], false);
+        assert_eq!(attempts[1]["reason"], "missing_or_invalid_depth");
+        assert_eq!(attempts[2]["usable"], true);
+        assert!(
+            server
+                .received_requests()
+                .await
+                .unwrap()
+                .iter()
+                .all(|r| r.url.path() != "/markets")
         );
     }
 
@@ -324,7 +495,7 @@ mod cycle_tests {
         let client = Client::with_base_url(&server.uri()).unwrap();
         let open = Utc::now().timestamp() - 35;
         for phase in [Phase::Opening, Phase::ExecutionCandidate] {
-            let value = capture_cycle(&client, Asset::Sol, open, phase).await;
+            let value = capture_cycle(&client, Asset::Sol, open, phase, None).await;
             assert_eq!(value["error"], "outside_phase");
             assert!(value["observation"].is_null());
         }

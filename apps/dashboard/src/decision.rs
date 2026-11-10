@@ -2,7 +2,7 @@
 use crate::{
     assets::Asset,
     checkpoint::Phase,
-    order_book::{Book, Snapshot},
+    order_book::{Snapshot, research_view},
 };
 use chrono::{DateTime, Utc};
 use rust_decimal::Decimal;
@@ -114,24 +114,9 @@ pub fn packet(
     let snapshot: Snapshot = serde_json::from_value(json!({"market_ticker":ticker,
         "yes_dollars_fp":obs["yes_bids"],"no_dollars_fp":obs["no_bids"]}))
     .map_err(|_| "invalid_book")?;
-    for side in [&snapshot.yes_dollars_fp, &snapshot.no_dollars_fp] {
-        if side.is_empty()
-            || side.len() > 10
-            || side
-                .iter()
-                .any(|(p, _)| *p <= Decimal::ZERO || *p >= Decimal::ONE)
-        {
-            return Err("missing_or_invalid_depth");
-        }
-    }
-    let mut book = Book::default();
-    book.snapshot(snapshot, 0, 0).map_err(|_| "invalid_book")?;
-    let view = book.view();
+    let view = research_view(snapshot)?;
     let bid = view.yes_dollars[0].0;
     let ask = Decimal::ONE - view.no_dollars[0].0;
-    if bid > ask {
-        return Err("crossed_book");
-    }
     Ok(
         json!({"schema_version":1,"asset":asset,"open_ts":open,"ticker":ticker,"cutoff":cutoff,
         "source_id":expected,"source_created_at":ordered[6],"received_at":ordered[5],

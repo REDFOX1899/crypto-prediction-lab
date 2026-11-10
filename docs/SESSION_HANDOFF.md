@@ -2,6 +2,14 @@
 
 Updated: 10 November 2026, America/New_York.
 
+## Timing repair — in progress
+
+User requested reliable scheduler/opening capture, a few real cycle checks, GitHub publication and deployment. Branch `codex/reliable-cycle-dispatch` contains a two-phase Scheduler design with the existing invocation identity. New opening handler starts from the prior-minute job, uses bounded early 503 retries, discovers upcoming exact IDs and captures after +5s. A separate follow-up job captures at +45s. Source/decision gates remain +30/+40s. Exact-window and direct metadata queries replace the stale status-list lookup in research capture. The source waits for a positive target and a usable two-sided book. All existing immutable source/run IDs remain.
+
+A read-only probe at 21:30 UTC confirmed old lists missed all three current contracts at +5/+15s while range/direct discovery found them. BTC target readiness also lagged. All 82 Rust, 58 frontend and 21 Python tests passed, plus fmt, clippy and whitespace checks. Build `a1bda0e4-4bc3-4e7d-8e74-75dea910dd49` is in progress from this source. Next deploy the private collector, apply the two jobs and verify three automatic cycles (target 22:00/22:15/22:30 UTC), with independent input-hash, cutoff, durable commitment and later-link checks. No manual capture/warming should be used for this verification.
+
+Automatic approval review rejected a Cloud Tasks setup with added identity delegation. That unexecuted script and implementation were removed. The current safer design changes only Scheduler paths/retry configuration and adds a follow-up Scheduler job with the already authorized identity. No queue/API/identity grant is part of the final design. See `docs/reliable-cycle-dispatch.md`. GitHub currently has Rust CI only. The verified GCP release should also be recorded as a production deployment in GitHub after main publication.
+
 ## Ticket C — private decision runner
 
 Implemented private `market_midpoint_v1` runner with cutoff-scoped allowlist packets, immutable decision commits, actual server commitment timestamps and later candidate linkage. Opening and follow-up captures retain their schema. The existing quarter-hour callback now runs decisions after opening writes and linkage after follow-up writes. Private run/review routes enforce window, asset and unknown-field validation. Late or invalid data abstains. Model work is the deterministic midpoint benchmark and has no provider charges. Fees, entry levels and fills are separate tickets.

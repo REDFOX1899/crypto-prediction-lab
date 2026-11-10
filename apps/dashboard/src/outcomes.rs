@@ -152,61 +152,156 @@ impl Archive {
         &self,
         runner: Option<&crate::decision_runner::Runner>,
     ) -> Result<Value, Failure> {
-        let _guard = self
-            .collection_lock
-            .try_lock()
-            .map_err(|_| "Collection already running")?;
-        let Some(open) = crate::checkpoint::opening_slot(Utc::now().timestamp()) else {
+        let open = Utc::now().timestamp().div_euclid(900) * 900;
+        self.collect_prepared_cycle(
+            &crate::cycle_dispatch::PreparedCycle {
+                open_time: open,
+                ..Default::default()
+            },
+            runner,
+        )
+        .await
+    }
+    pub(crate) async fn collect_prepared_cycle(
+        &self,
+        prepared: &crate::cycle_dispatch::PreparedCycle,
+        runner: Option<&crate::decision_runner::Runner>,
+    ) -> Result<Value, Failure> {
+        if !prepared.ready_at(Utc::now().timestamp()) {
             return Ok(json!({"status":"outside_capture_minute","stored":0}));
-        };
-        let client = kalshi_client::Client::new()?;
-        let client = &client;
-        let mut stored = 0;
-        let mut research = Vec::new();
+        }
+        let mut phases = Vec::new();
         for phase in [
             crate::checkpoint::Phase::Opening,
             crate::checkpoint::Phase::ExecutionCandidate,
         ] {
-            let wait_ms = (open + phase.offset()) * 1000 - Utc::now().timestamp_millis();
+            let wait_ms =
+                (prepared.open_time + phase.offset()) * 1000 - Utc::now().timestamp_millis();
             if wait_ms > 0 {
                 tokio::time::sleep(Duration::from_millis(wait_ms as u64)).await;
             }
-            // Shared provider captures, bounded to three assets with phase budgets
-            // in parallel. The HTTP handler owns the entire lifetime.
-            let pending = futures_util::future::try_join_all(Asset::ALL.into_iter().map(
-                |asset| async move {
-                    let path = phase.path(asset, open);
-                    if self.saved_payload(&path, 32_768).await?.is_some() {
-                        return Ok::<_, Failure>(None);
-                    }
-                    let value = crate::checkpoint::capture_cycle(client, asset, open, phase).await;
-                    Ok(Some((path, value)))
-                },
-            ))
-            .await?;
-            for (path, value) in pending.into_iter().flatten() {
-                stored += usize::from(self.create_checkpoint(&path, &value).await?);
-            }
-            if let Some(runner) = runner {
-                let work = async {
-                    match phase {
-                        crate::checkpoint::Phase::Opening => runner.decide_cycle(open).await,
-                        crate::checkpoint::Phase::ExecutionCandidate => {
-                            runner.link_cycle(open).await
-                        }
-                    }
+            phases.push(self.collect_phase(prepared, phase, runner).await?);
+        }
+        let stored: u64 = phases.iter().filter_map(|p| p["stored"].as_u64()).sum();
+        let research: Vec<_> = phases.iter().map(|p| p["research"].clone()).collect();
+        Ok(
+            json!({"status":"captured","open":prepared.open_time,"stored":stored,"research":research,"phases":phases}),
+        )
+    }
+    pub(crate) async fn discover_cycle(
+        &self,
+        open: i64,
+    ) -> Result<crate::cycle_dispatch::PreparedCycle, Failure> {
+        let client = kalshi_client::Client::new()?;
+        let found = futures_util::future::join_all(Asset::ALL.into_iter().map(|asset| {
+            let client = &client;
+            async move {
+                let markets = tokio::time::timeout(
+                    Duration::from_secs(2),
+                    client.window_markets(asset.info().series, open),
+                )
+                .await;
+                let ticker = match markets {
+                    Ok(Ok(m)) => m
+                        .into_iter()
+                        .find(|m| {
+                            m.open_time.timestamp() == open
+                                && m.close_time.timestamp() == open + 900
+                                && crate::checkpoint::valid_hint(asset, &m.ticker)
+                        })
+                        .map(|m| m.ticker),
+                    _ => None,
                 };
-                match tokio::time::timeout(Duration::from_secs(5), work).await {
-                    Ok(value) => research.push(value),
-                    Err(_) => {
-                        research.push(json!({"phase":phase.name(),"status":"runner_deadline"}))
+                (asset, ticker)
+            }
+        }))
+        .await;
+        Ok(crate::cycle_dispatch::PreparedCycle {
+            open_time: open,
+            tickers: found
+                .into_iter()
+                .filter_map(|(a, t)| t.map(|t| (a, t)))
+                .collect(),
+        })
+    }
+    pub(crate) async fn collect_phase(
+        &self,
+        prepared: &crate::cycle_dispatch::PreparedCycle,
+        phase: crate::checkpoint::Phase,
+        runner: Option<&crate::decision_runner::Runner>,
+    ) -> Result<Value, Failure> {
+        let _guard = self
+            .collection_lock
+            .try_lock()
+            .map_err(|_| "Collection already running")?;
+        let open = prepared.open_time;
+        let client = kalshi_client::Client::new()?;
+        let pending = futures_util::future::try_join_all(Asset::ALL.into_iter().map(|asset| {
+            let client = &client;
+            async move {
+                let path = phase.path(asset, open);
+                if self.saved_payload(&path, 32_768).await?.is_some() {
+                    return Ok::<_, Failure>(None);
+                }
+                let mut hint = prepared.tickers.get(&asset).cloned();
+                if hint.is_none()
+                    && phase == crate::checkpoint::Phase::ExecutionCandidate
+                    && let Some(row) = self
+                        .saved_payload(&crate::checkpoint::Phase::Opening.path(asset, open), 32_768)
+                        .await?
+                {
+                    hint = row
+                        .pointer("/observation/ticker")
+                        .and_then(Value::as_str)
+                        .filter(|t| crate::checkpoint::valid_hint(asset, t))
+                        .map(str::to_owned);
+                }
+                let value =
+                    crate::checkpoint::capture_cycle(client, asset, open, phase, hint.as_deref())
+                        .await;
+                Ok(Some((path, value)))
+            }
+        }))
+        .await?;
+        let mut stored = 0;
+        for (path, value) in pending.into_iter().flatten() {
+            stored += usize::from(self.create_checkpoint(&path, &value).await?);
+        }
+        let research = if let Some(runner) = runner {
+            let work = async {
+                match phase {
+                    crate::checkpoint::Phase::Opening => runner.decide_cycle(open).await,
+                    crate::checkpoint::Phase::ExecutionCandidate => {
+                        // Missing opening work becomes an explicit deadline abstention.
+                        runner.decide_cycle(open).await;
+                        runner.link_cycle(open).await
                     }
                 }
+            };
+            match tokio::time::timeout(Duration::from_secs(5), work).await {
+                Ok(v) => v,
+                Err(_) => json!({"status":"runner_deadline"}),
             }
-        }
-        Ok(json!({"status":"captured","stored":stored,"open":open,"research":research}))
+        } else {
+            json!({"status":"not_configured"})
+        };
+        Ok(
+            json!({"status":"captured","phase":phase.name(),"open":open,"stored":stored,"research":research}),
+        )
     }
 
+    pub(crate) async fn save_dispatch_plan(
+        &self,
+        open: i64,
+        phase: crate::checkpoint::Phase,
+        value: &Value,
+    ) -> Result<bool, Failure> {
+        self.create_checkpoint(
+            &format!("cycle_dispatch_v1/s{open}_{}", phase.name()),
+            value,
+        )
+        .await
+    }
     async fn create_checkpoint(&self, path: &str, value: &Value) -> Result<bool, Failure> {
         let name = format!(
             "{}/{path}",

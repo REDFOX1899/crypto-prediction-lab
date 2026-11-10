@@ -60,6 +60,11 @@ pub struct OrderBook {
 }
 
 #[derive(Debug, Deserialize)]
+struct MarketResponse {
+    market: Market,
+}
+
+#[derive(Debug, Deserialize)]
 struct MarketPage {
     markets: Vec<Market>,
     #[serde(default)]
@@ -121,6 +126,39 @@ impl Client {
             .json()
             .await?;
         Ok(response.orderbook_fp)
+    }
+
+    /// Window-specific discovery includes unopened contracts and avoids a reused
+    /// status-filtered list at rollover. Exact identity is validated by callers.
+    pub async fn window_markets(&self, series: &str, open: i64) -> Result<Vec<Market>, Error> {
+        let page: MarketPage = self
+            .http
+            .get(format!("{}/markets", self.base_url))
+            .header("Cache-Control", "no-cache")
+            .query(&[
+                ("series_ticker", series.to_owned()),
+                ("min_close_ts", (open + 899).to_string()),
+                ("max_close_ts", (open + 901).to_string()),
+                ("limit", "20".into()),
+            ])
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        Ok(page.markets)
+    }
+    pub async fn market(&self, ticker: &str) -> Result<Market, Error> {
+        let response: MarketResponse = self
+            .http
+            .get(format!("{}/markets/{ticker}", self.base_url))
+            .header("Cache-Control", "no-cache")
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+        Ok(response.market)
     }
 
     pub async fn open_markets(&self, series: &str) -> Result<Vec<Market>, Error> {
@@ -257,5 +295,49 @@ mod tests {
         let client = Client::with_base_url(&server.uri()).unwrap();
         assert_eq!(client.open_markets("KXBTC15M").await.unwrap().len(), 1);
         assert!(client.exchange_status().await.is_err());
+    }
+}
+
+#[cfg(test)]
+mod discovery_tests {
+    use super::*;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{header, method, path, query_param},
+    };
+    #[tokio::test]
+    async fn discovers_exact_future_window_without_status_cache_and_refreshes_by_id() {
+        let server = MockServer::start().await;
+        let market = serde_json::json!({"ticker":"KXBTC15M-TEST","title":"Test","status":"initialized",
+            "open_time":"2026-11-10T22:00:00Z","close_time":"2026-11-10T22:15:00Z"});
+        Mock::given(method("GET"))
+            .and(path("/markets"))
+            .and(query_param("min_close_ts", "2699"))
+            .and(query_param("max_close_ts", "2701"))
+            .and(|r: &wiremock::Request| r.url.query_pairs().all(|(k, _)| k != "status"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"markets":[market]})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/markets/KXBTC15M-TEST"))
+            .and(header("cache-control", "no-cache"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"market":market})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = Client::with_base_url(&server.uri()).unwrap();
+        assert_eq!(
+            client.window_markets("KXBTC15M", 1800).await.unwrap().len(),
+            1
+        );
+        assert_eq!(
+            client.market("KXBTC15M-TEST").await.unwrap().status,
+            "initialized"
+        );
     }
 }

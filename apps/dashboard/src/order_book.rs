@@ -97,6 +97,27 @@ impl Book {
     }
 }
 
+/// Strict two-sided view for research inputs. Display-book behavior stays intact.
+pub fn research_view(snapshot: Snapshot) -> Result<BookView, &'static str> {
+    for side in [&snapshot.yes_dollars_fp, &snapshot.no_dollars_fp] {
+        if side.is_empty()
+            || side.len() > 10
+            || side
+                .iter()
+                .any(|(p, _)| *p <= Decimal::ZERO || *p >= Decimal::ONE)
+        {
+            return Err("missing_or_invalid_depth");
+        }
+    }
+    let mut book = Book::default();
+    book.snapshot(snapshot, 0, 0).map_err(|_| "invalid_book")?;
+    let view = book.view();
+    if view.yes_dollars[0].0 > Decimal::ONE - view.no_dollars[0].0 {
+        return Err("crossed_book");
+    }
+    Ok(view)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

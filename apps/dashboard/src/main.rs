@@ -3,6 +3,7 @@ mod blockworks;
 mod checkpoint;
 mod combos;
 mod context;
+mod cycle_dispatch;
 mod decision;
 mod decision_runner;
 mod delivery;
@@ -341,6 +342,83 @@ async fn review_decision(
         Ok(Ok(v)) => ([(header::CACHE_CONTROL, "no-store")], Json(v)).into_response(),
         _ => (StatusCode::BAD_GATEWAY, "Private review unavailable").into_response(),
     }
+}
+
+async fn scheduled_phase(
+    state: CollectorState,
+    headers: axum::http::HeaderMap,
+    phase: checkpoint::Phase,
+) -> Response {
+    let received = Utc::now();
+    let header = headers
+        .get("x-cloudscheduler-scheduletime")
+        .and_then(|v| v.to_str().ok());
+    let open = match cycle_dispatch::scheduled_open(header, received) {
+        Ok(Some(v)) => v,
+        Ok(None) => {
+            return Json(serde_json::json!({"status":"outside_scheduled_window"})).into_response();
+        }
+        Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
+    };
+    let capture_at = match cycle_dispatch::phase_capture_at(open, received.timestamp(), phase) {
+        Ok(v) => v,
+        Err("early") => {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                [(header::RETRY_AFTER, "5")],
+                "Retry within capture window",
+            )
+                .into_response();
+        }
+        Err(_) => {
+            return Json(
+                serde_json::json!({"status":"missed_phase","open":open,"phase":phase.name()}),
+            )
+            .into_response();
+        }
+    };
+    let work = async {
+        let prepared = if phase == checkpoint::Phase::Opening {
+            state.archive.discover_cycle(open).await?
+        } else {
+            cycle_dispatch::PreparedCycle {
+                open_time: open,
+                ..Default::default()
+            }
+        };
+        let plan = serde_json::json!({"schema_version":1,"open_time":open,"phase":phase.name(),
+            "request_received_at":received,"original_schedule_time":header,"prepared_at":Utc::now(),
+            "tickers":prepared.tickers,"planned_capture_offset":if phase==checkpoint::Phase::Opening {5}else{45}});
+        state.archive.save_dispatch_plan(open, phase, &plan).await?;
+        let wait = capture_at * 1000 - Utc::now().timestamp_millis();
+        if wait > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(wait as u64)).await;
+        }
+        state
+            .archive
+            .collect_phase(&prepared, phase, state.runner.as_deref())
+            .await
+    };
+    match tokio::time::timeout(std::time::Duration::from_secs(50), work).await {
+        Ok(Ok(v)) => Json(v).into_response(),
+        Ok(Err(error)) => {
+            eprintln!("Scheduled phase failed: {error}");
+            (StatusCode::BAD_GATEWAY, "Scheduled phase failed").into_response()
+        }
+        Err(_) => (StatusCode::GATEWAY_TIMEOUT, "Scheduled phase deadline").into_response(),
+    }
+}
+async fn collect_opening(
+    State(state): State<CollectorState>,
+    headers: axum::http::HeaderMap,
+) -> Response {
+    scheduled_phase(state, headers, checkpoint::Phase::Opening).await
+}
+async fn collect_followup(
+    State(state): State<CollectorState>,
+    headers: axum::http::HeaderMap,
+) -> Response {
+    scheduled_phase(state, headers, checkpoint::Phase::ExecutionCandidate).await
 }
 
 async fn collect_cycle(State(state): State<CollectorState>) -> Response {
@@ -803,6 +881,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let runner = decision_runner::Runner::from_env(archive.clone())
             .map_err(|_| "Invalid private runner configuration")?;
         let app = Router::new()
+            .route("/collect-opening", post(collect_opening))
+            .route("/collect-followup", post(collect_followup))
             .route("/run-decisions", post(run_decisions))
             .route("/research/decision", get(review_decision))
             .route("/collect", post(collect_history))
