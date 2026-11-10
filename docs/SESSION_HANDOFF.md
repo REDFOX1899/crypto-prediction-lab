@@ -2,6 +2,18 @@
 
 Updated: 10 November 2026, America/New_York.
 
+## Current release — final-minute remaining-average threshold
+
+The owner authorized the indicator, GitHub publication, deployment and live verification. Branch `codex/final-minute-threshold` is based on `2416967`. Application commit `bb5e8b5` is on GitHub main and serves 100% of public traffic in `crypto-prediction-lab-00033-dar`. Cloud Build `f2981e73-12b1-45fd-9c2b-7a84718d7a1c` produced tag `final-minute-threshold`, digest `sha256:27aa302fa8623717cf8d3f99542748a4043160470a7d969864cd15e8d9d7dda2`.
+
+- The Single market final-minute panel shows (60 × target − unrounded completed-second sum) ÷ remaining seconds. It requires complete elapsed-second coverage, a valid positive at-or-above target, fresh reference data and fresh market metadata. The current open second is excluded. Display rounds upward to the asset's normal USD precision. A nonpositive requirement reads “Any positive average” in the observation model.
+- The value is timestamped with its remaining-second count. Missing seconds, stale/disconnected sources, delayed browser updates above three seconds, unsupported targets and close suppress it. It uses the existing bounded recorder and shared feed without new collection or persistence.
+- The first deployed final minute had seven missing opening seconds and correctly suppressed the value for all three assets. Verification continued through the next complete final minute. Independent live checks confirmed the formula with complete observed coverage and at least ten elapsed seconds for BTC, ETH and SOL. Captured proofs (asset, observed seconds, required mean, server milliseconds) are `[('BTC', 12, '73875.64', 1794319152575), ('ETH', 12, '2068.79', 1794319152575), ('SOL', 12, '84.2140', 1794319152575)]`. Full evidence is under `/private/tmp/threshold-live-proof.json`.
+- Controlled browser checks verified the $100 target / 40 observations averaging $100.10 / required remaining $99.80 example, twenty remaining seconds, disconnect suppression and mobile light/dark layout. Public browser checks verified all three asset targets, pre-final suppression, desktop/mobile light/dark and the visible order book.
+- Checks passed with `cargo fmt --check`, `cargo clippy --locked --workspace --all-targets -- -D warnings`, `cargo test --locked --workspace` (63 Rust tests), `node --test apps/dashboard/tests/*.test.cjs` (58 tests), `python3 -m unittest discover -s scripts/tests -q` (13 tests) and `git diff --check`. GitHub Actions passed.
+- Public runtime identity, mounts, environment, IAM, CPU/memory and timeout were compared with the prior release. Temporary max-two service overlap was restored to max one after rollout. The private snapshot collector and schedules retain the preceding release.
+- This is arithmetic for our latest-observation-per-second mean. Official sampling, revisions, rounding and each contract's terms can differ. The UI labels this distinction. [Definition and timing](final-minute.md)
+
 ## Current release — market replay and minute-10 captures
 
 The owner authorized implementation, GitHub publication, deployment and verification of replay and recurring BTC/ETH/SOL checkpoints. Branch `codex/market-replay` is based on `7587f05`. Public application commit `1544e37` serves 100% traffic as `crypto-prediction-lab-00030-huw`. Collector correction `a4a61ef` is published to GitHub main and serves 100% private traffic as `crypto-history-collector-00007-lq5`.

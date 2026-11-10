@@ -9,7 +9,7 @@ Crypto Prediction Lab is a public, read-only research dashboard for people follo
 - Repository: https://github.com/REDFOX1899/crypto-prediction-lab
 - Website: https://crypto-prediction-lab-308289525742.us-central1.run.app/
 - Working directory: the Git checkout attached to the Crypto Prediction Lab project. An older Desktop checkout also exists; use one active checkout at a time. The current project folder was initially empty and was populated from GitHub during session setup.
-- Application release commit `1544e37` adds market replay and a bounded private minute-10 checkpoint collector, published on GitHub main. Later documentation commits do not imply a new deployed image.
+- Application release commit `bb5e8b5` adds the final-minute remaining-average threshold to Single market, published on GitHub main. Later documentation commits do not imply a new deployed image.
 
 ## Implemented product
 
@@ -20,6 +20,8 @@ Crypto Prediction Lab is a public, read-only research dashboard for people follo
 **Combo lab** (`/?view=combos`): two/three aligned asset selections, existing public combo books where an exact matching market exists, hypothetical payout exploration and joined outcome history. Missing quotes are legitimate: Kalshi's private RFQ-derived payouts are not generally public book quotes. The app explains this. RFQ creation/acceptance and trades are disabled.
 
 **CoinMarketCap context**, below the homepage market watch: aggregate prices; 1h/24h/7d changes; market caps; rolling 24-hour volumes; global metrics; BTC dominance; dated Fear & Greed; sampled-price SVG history. This is a separate source, not the contract's CF settlement index. Historical samples begin with collection; no earlier ticks are fabricated.
+
+The Single market final-minute panel includes a required remaining reference average based on the unrounded sum of complete observed source seconds. It suppresses values on gaps, stale data, invalid targets and close, and rounds the displayed threshold upward. This describes the observation model and preserves the distinction from official settlement sampling and rounding. See `final-minute.md`.
 
 ## Market replay and scheduled checkpoint
 
@@ -51,9 +53,9 @@ Before-outcome research filters completed intervals to open/+5/+10/+14 minute cu
 
 Google Cloud project `gitunderstand`, number `308289525742`, region `us-central1`. This is a shared project; do not modify unrelated services or project-wide billing/IAM.
 
-- Public service `crypto-prediction-lab`: revision `crypto-prediction-lab-00030-huw` at the last release. Dashboard identity has database viewer access, and retains only its Kalshi secret access.
+- Public service `crypto-prediction-lab`: revision `crypto-prediction-lab-00033-dar` at the last release. Dashboard identity has database viewer access, and retains only its Kalshi secret access.
 - Private service `crypto-history-collector`: revision `crypto-history-collector-00007-lq5`. Collector identity writes only the dedicated database and reads the dedicated CMC key. No Kalshi trading credentials are added.
-- Public image `replay-1544e37` came from build `0e35e5b4-8cb2-4f00-8c10-81d560fc24da`, digest `sha256:7f0f02034fef6e04dc3c2ab7a3ae16d2c0e9e1f577debaff800c1a7b29a13cd4`. Private collector correction `a4a61ef` uses build `66d776bb-83af-4abd-a073-c375538b4e06`, digest `sha256:c2bf9db3c3cdb2ef6cb58dbc58a1a338b1351ec6f6ad8a5b1f309a7980f00fe2`.
+- Public image `final-minute-threshold` came from build `f2981e73-12b1-45fd-9c2b-7a84718d7a1c`, digest `sha256:27aa302fa8623717cf8d3f99542748a4043160470a7d969864cd15e8d9d7dda2`. Private collector correction `a4a61ef` uses build `66d776bb-83af-4abd-a073-c375538b4e06`, digest `sha256:c2bf9db3c3cdb2ef6cb58dbc58a1a338b1351ec6f6ad8a5b1f309a7980f00fe2`.
 - Both services retain request-based CPU, first-generation execution, 0.25 vCPU, 256 MiB, concurrency one, min zero, max one and startup CPU boost off. Dashboard timeout 30 seconds; collector timeout 60 seconds. These settings do not guarantee a particular latency or exact monthly bill.
 - Named Firestore database `crypto-prediction-lab`. Default database is unrelated. `contracts_btc`, `contracts_eth`, `contracts_sol` retain settled market records/minute candles and summaries. `cmc_context/latest` holds normalized current context; `cmc_samples` holds combined three-asset sampled observations.
 - Existing private history schedule: `crypto-history-quarter-hour`, minutes 2/17/32/47 UTC. New private CMC schedule: `crypto-market-context`, every five minutes. Both use the existing dedicated scheduler identity and service-level invocation rights.
