@@ -106,27 +106,38 @@ fn matches_window(market: &kalshi_client::Market, asset: Asset, open: i64) -> bo
 pub async fn capture_cycle(client: &Client, asset: Asset, open: i64, phase: Phase) -> Value {
     let started = Utc::now();
     let mut times = json!({"metadata_request_started_at":null,"metadata_received_at":null,
-        "book_request_started_at":null,"book_received_at":null});
-    let result = tokio::time::timeout(std::time::Duration::from_secs(4), async {
+        "book_request_started_at":null,"book_received_at":null,"metadata_attempts":[]});
+    let budget = if phase == Phase::Opening { 8 } else { 4 };
+    let result = tokio::time::timeout(std::time::Duration::from_secs(budget), async {
         if started.timestamp() < open + phase.offset()
             || started.timestamp() >= open + phase.deadline()
         {
             return Err("outside_phase");
         }
-        // Retry discovery once, within the same bounded attempt. Never retry a
-        // stored first attempt or replace it with a later, more favorable book.
+        // Discovery can lag rollover. Retry within the phase budget, retaining
+        // every attempt's timing. A stored first attempt is never replaced.
+        let attempts = if phase == Phase::Opening { 5 } else { 2 };
         let mut selected = None;
-        for attempt in 0..2 {
+        for attempt in 0..attempts {
+            if Utc::now().timestamp() >= open + phase.deadline() {
+                break;
+            }
             times["metadata_request_started_at"] = json!(Utc::now());
             let response = client.open_markets(asset.info().series).await;
             times["metadata_received_at"] = json!(Utc::now());
+            let succeeded = response.is_ok();
+            let market_count = response.as_ref().map_or(0, Vec::len);
             if let Ok(markets) = response {
                 selected = markets.into_iter().find(|m| matches_window(m, asset, open));
             }
-            if selected.is_some() || attempt == 1 {
+            let attempt_times = json!({"request_started_at":times["metadata_request_started_at"],
+                "received_at":times["metadata_received_at"],"request_succeeded":succeeded,
+                "market_count":market_count,"matched_window":selected.is_some()});
+            times["metadata_attempts"].as_array_mut().expect("attempt list").push(attempt_times);
+            if selected.is_some() || attempt == attempts - 1 {
                 break;
             }
-            tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
         }
         let market = selected.ok_or("market_unavailable")?;
         if Utc::now().timestamp() >= open + phase.deadline() {
@@ -197,7 +208,15 @@ mod cycle_tests {
             "floor_strike":"100","strike_type":"greater_or_equal"});
         Mock::given(method("GET"))
             .and(path("/markets"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"markets":[]})))
+            .up_to_n_times(1)
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/markets"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({"markets":[market]})))
+            .with_priority(10)
             .expect(1)
             .mount(&server)
             .await;
@@ -213,6 +232,13 @@ mod cycle_tests {
         let client = Client::with_base_url(&server.uri()).unwrap();
         let value = capture_cycle(&client, Asset::Btc, open, Phase::Opening).await;
         assert_eq!(value["status"], "available");
+        assert_eq!(
+            value["component_times"]["metadata_attempts"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
         assert_eq!(value["observation"]["ticker"], "KXBTC15M-TEST");
         assert!(value["decision_id"].is_null());
         let times = &value["component_times"];
@@ -240,7 +266,7 @@ mod cycle_tests {
         Mock::given(method("GET"))
             .and(path("/markets"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({"markets":[market]})))
-            .expect(2)
+            .expect(5)
             .mount(&server)
             .await;
         let client = Client::with_base_url(&server.uri()).unwrap();
