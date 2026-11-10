@@ -277,9 +277,19 @@ async fn replay_checkpoint(
 }
 
 async fn collect_minute_ten(State(state): State<CollectorState>) -> Response {
-    match state.archive.collect_minute_ten().await {
-        Ok(result) => Json(result).into_response(),
-        Err(_) => (StatusCode::BAD_GATEWAY, "Minute 10 collection failed").into_response(),
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(50),
+        state.archive.collect_minute_ten(),
+    )
+    .await
+    {
+        Ok(Ok(result)) => Json(result).into_response(),
+        Ok(Err(_)) => (StatusCode::BAD_GATEWAY, "Minute 10 collection failed").into_response(),
+        Err(_) => (
+            StatusCode::GATEWAY_TIMEOUT,
+            "Minute 10 collection deadline reached",
+        )
+            .into_response(),
     }
 }
 
