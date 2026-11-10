@@ -51,3 +51,21 @@ In another shell, `curl -H 'Content-Type: application/json' --data '{}' http://1
 77 Rust tests, 58 frontend tests and 21 Python tests passed, including cutoff/immutable-version guards, future-field/outcome independence across BTC/ETH/SOL, bad identity/book/rule/age rejection, late/tampered/earlier-candidate link rejection, generation-pinned reads, conditional first-write preservation, record size limits and caller-cutoff denial. Formatting, locked clippy and whitespace checks passed. Tests use synthetic fixtures and local mock servers. No frontend layout changed.
 
 Live deployment and scheduled-cycle evidence are recorded in the session handoff after observation. A private deadline invocation already confirmed three abstentions and three ineligible links. Anonymous private routes and caller-cutoff overrides were rejected. A direct dashboard-service impersonation test was unavailable under existing operator permissions. Bucket and project IAM were inspected without adding token-mint permissions or enabling a project diagnostic API.
+
+The first scheduled 21:00 UTC cycle was dispatched at 21:00:38 UTC according to Scheduler execution logs. All opening captures were outside the +30s gate. The runner saved three `snapshot_unavailable` abstentions, and all links were ineligible with `decision_abstained`. These records remain immutable. Minute-level scheduling/cold starts do not provide a second-zero SLA. This pilot reports those misses; resource limits and deadline rules were preserved. A subsequent supervised prospective cycle exercises the positive linkage path.
+
+## Supervised prospective verification at 21:15 UTC
+
+A supervised private capture request at +18s exercised the existing collector path on revision `crypto-history-collector-00011-hzp`. The first-attempt rules remained in force. All three assets have private decision and link objects. BTC and ETH each exhausted the bounded opening discovery attempts without a matching market/window; their forecasts abstained with null packets/probabilities, and the later books were ineligible. SOL had a valid opening book and a timing-eligible later link. This is positive-path evidence from a supervised live cycle, alongside the earlier scheduler-delayed negative-path test. It is not a claim that every scheduled cycle delivers a forecast.
+
+| Asset | Decision cutoff UTC | Durable commitment UTC | Outcome |
+|---|---|---|---|
+| BTC | 21:15:22.724982720 | 21:15:22.931 | Abstained, opening unavailable |
+| ETH | 21:15:22.724188955 | 21:15:22.928 | Abstained, opening unavailable |
+| SOL | 21:15:22.734399265 | 21:15:22.925 | Forecast linked to later candidate |
+
+SOL's opening source became durable at 21:15:22.675527 UTC, before its cutoff. The candidate request started at 21:15:45.039655011 and completed at 21:15:45.084514693 UTC, after commitment plus the one-second allowance. An independent verifier recomputed the input hash and midpoint, checked every input availability time, commitment/deadline, matching ticker and candidate ordering. It checked that abstentions expose no packet, probability or candidate, and repeated `POST /run-decisions` preserved all six object generations, creation times and payloads. The proof file is local `/private/tmp/ticket-c-live-proof.json`; raw records stay private.
+
+Build `c0d3ccb9-8292-4ca5-89c9-4cefa94d1039` produced digest `sha256:d324dcd6fbddfeddc14a657d5fb16868a371a87eb30fba2ca0231620588ce900`. The collector serves 100% traffic on revision 00011. Source implementation is commit `38cc442`. GitHub Actions passed. Runtime identity, mounts, CPU/memory, concurrency, timeout, scaling and invocation IAM were compared with the prior release. The expected environment addition is `DECISION_BUCKET`. The public dashboard was not redeployed.
+
+The remaining operational limitation is opening coverage under minute-level scheduler delivery and market-discovery delays. These failures are recorded as abstentions and must be counted in future performance reports. No predictive edge or fill rate has been established.
