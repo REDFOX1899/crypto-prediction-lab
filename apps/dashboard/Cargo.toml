@@ -11,6 +11,7 @@ kalshi-client = { path = "../../crates/kalshi-client" }
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time", "signal"] }
 base64 = "0.22"
+sha2 = "0.10"
 ed25519-dalek = { version = "2", features = ["pkcs8", "pem"] }
 futures-util = "0.3"
 rust_decimal = { version = "1", features = ["serde"] }

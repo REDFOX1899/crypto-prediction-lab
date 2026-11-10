@@ -2,6 +2,12 @@
 
 Updated: 10 November 2026, America/New_York.
 
+## Ticket C — private decision runner
+
+Implemented private `market_midpoint_v1` runner with cutoff-scoped allowlist packets, immutable decision commits, actual server commitment timestamps and later candidate linkage. Opening and follow-up captures retain their schema. The existing quarter-hour callback now runs decisions after opening writes and linkage after follow-up writes. Private run/review routes enforce window, asset and unknown-field validation. Late or invalid data abstains. Model work is the deterministic midpoint benchmark and has no provider charges. Fees, entry levels and fills are separate tickets.
+
+A dedicated app-private bucket separates runs from dashboard-readable Firestore. Uniform access/public prevention and collector-only object creator/viewer grants were applied at bucket scope. Existing project IAM and resource limits were retained. All 77 Rust, 58 frontend and 21 Python tests passed, alongside fmt, locked clippy and whitespace checks. Live authorization, caller-cutoff rejection and deadline abstentions passed on collector revision `crypto-history-collector-00011-hzp`. Scheduled 21:00 UTC cutoff/commitment/link verification is in progress. See `docs/private-decision-runner.md` for schemas, costs, private operator routes and disable instructions.
+
 ## Ticket B — opening and execution-candidate capture
 
 Implemented private `POST /collect-cycle`, prospective opening and +45s execution-candidate records for BTC/ETH/SOL, and `scripts/deploy-cycle-schedule.zsh`. The owner authorized recurring capture and GCP save verification. The new collection is `cycle_snapshots_v1` in the existing named database, with immutable first-attempt IDs per asset/opening/phase. Each record has actual per-component request/receipt times, intended time, target/comparator/book and explicit error/late states. Existing minute-10 capture remains compatible. No decision exists yet, so follow-ups carry null decision fields and must be linked by the future runner before use in paper simulation.

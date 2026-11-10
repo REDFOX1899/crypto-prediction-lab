@@ -3,6 +3,8 @@ mod blockworks;
 mod checkpoint;
 mod combos;
 mod context;
+mod decision;
+mod decision_runner;
 mod delivery;
 mod final_minute;
 mod history;
@@ -276,10 +278,75 @@ async fn replay_checkpoint(
     }
 }
 
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RunRequest {
+    open_time: Option<i64>,
+}
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReviewRequest {
+    asset: Asset,
+    open_time: i64,
+}
+fn valid_research_window(open: i64) -> bool {
+    let now = Utc::now().timestamp();
+    open.rem_euclid(900) == 0 && open <= now && open >= now - 86400
+}
+async fn run_decisions(State(state): State<CollectorState>, Json(q): Json<RunRequest>) -> Response {
+    let open = q
+        .open_time
+        .unwrap_or_else(|| Utc::now().timestamp().div_euclid(900) * 900);
+    if !valid_research_window(open) {
+        return (StatusCode::BAD_REQUEST, "Invalid research window").into_response();
+    }
+    let Some(runner) = state.runner else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Private runner unavailable",
+        )
+            .into_response();
+    };
+    match tokio::time::timeout(std::time::Duration::from_secs(15), async {
+        let decisions = runner.decide_cycle(open).await;
+        let links = runner.link_cycle(open).await;
+        Json(serde_json::json!({"open":open,"decisions":decisions,"links":links})).into_response()
+    })
+    .await
+    {
+        Ok(v) => v,
+        Err(_) => (StatusCode::GATEWAY_TIMEOUT, "Private runner deadline").into_response(),
+    }
+}
+async fn review_decision(
+    State(state): State<CollectorState>,
+    Query(q): Query<ReviewRequest>,
+) -> Response {
+    if !valid_research_window(q.open_time) {
+        return (StatusCode::BAD_REQUEST, "Invalid research window").into_response();
+    }
+    let Some(runner) = state.runner else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Private runner unavailable",
+        )
+            .into_response();
+    };
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        runner.review(q.asset, q.open_time),
+    )
+    .await
+    {
+        Ok(Ok(v)) => ([(header::CACHE_CONTROL, "no-store")], Json(v)).into_response(),
+        _ => (StatusCode::BAD_GATEWAY, "Private review unavailable").into_response(),
+    }
+}
+
 async fn collect_cycle(State(state): State<CollectorState>) -> Response {
     match tokio::time::timeout(
         std::time::Duration::from_secs(50),
-        state.archive.collect_cycle(),
+        state.archive.collect_cycle(state.runner.as_deref()),
     )
     .await
     {
@@ -386,6 +453,7 @@ async fn before_outcome(
 struct CollectorState {
     archive: Arc<outcomes::Archive>,
     context: Arc<context::Context>,
+    runner: Option<Arc<decision_runner::Runner>>,
 }
 async fn context_board(State(state): State<AppState>) -> impl IntoResponse {
     (
@@ -732,13 +800,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         context::Context::new(archive.clone()).map_err(|_| "Invalid context configuration")?;
     if std::env::var("DASHBOARD_ROLE").as_deref() == Ok("collector") {
         let archive = archive.ok_or("Collector requires history configuration")?;
+        let runner = decision_runner::Runner::from_env(archive.clone())
+            .map_err(|_| "Invalid private runner configuration")?;
         let app = Router::new()
+            .route("/run-decisions", post(run_decisions))
+            .route("/research/decision", get(review_decision))
             .route("/collect", post(collect_history))
             .route("/collect-context", post(collect_context))
             .route("/collect-minute-ten", post(collect_minute_ten))
             .route("/collect-cycle", post(collect_cycle))
             .route("/api/health", get(|| async { "ok" }))
-            .with_state(CollectorState { archive, context });
+            .with_state(CollectorState {
+                archive,
+                context,
+                runner,
+            });
         let listener = tokio::net::TcpListener::bind((address, port)).await?;
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown())
@@ -950,6 +1026,24 @@ mod snapshot_tests {
         Mock, MockServer, ResponseTemplate,
         matchers::{method, path},
     };
+
+    #[test]
+    fn private_run_requests_cannot_override_cutoff_or_forecast() {
+        for body in [
+            json!({"cutoff":"2026-11-10T00:00:00Z"}),
+            json!({"p_yes":1}),
+            json!({"open_time":0,"asset":"DOGE"}),
+        ] {
+            assert!(serde_json::from_value::<RunRequest>(body).is_err());
+        }
+        assert!(
+            serde_json::from_value::<ReviewRequest>(json!({"asset":"DOGE","open_time":0})).is_err()
+        );
+        assert!(!valid_research_window(Utc::now().timestamp() + 900));
+        assert!(!valid_research_window(
+            Utc::now().timestamp().div_euclid(900) * 900 - 86400 - 900
+        ));
+    }
 
     #[tokio::test]
     async fn overlapping_visitors_reuse_the_same_timestamp_and_book_fetch() {

@@ -148,7 +148,10 @@ impl Archive {
         Ok(json!({"status":"captured","stored":stored,"open":open}))
     }
 
-    pub(crate) async fn collect_cycle(&self) -> Result<Value, Failure> {
+    pub(crate) async fn collect_cycle(
+        &self,
+        runner: Option<&crate::decision_runner::Runner>,
+    ) -> Result<Value, Failure> {
         let _guard = self
             .collection_lock
             .try_lock()
@@ -159,6 +162,7 @@ impl Archive {
         let client = kalshi_client::Client::new()?;
         let client = &client;
         let mut stored = 0;
+        let mut research = Vec::new();
         for phase in [
             crate::checkpoint::Phase::Opening,
             crate::checkpoint::Phase::ExecutionCandidate,
@@ -167,8 +171,8 @@ impl Archive {
             if wait_ms > 0 {
                 tokio::time::sleep(Duration::from_millis(wait_ms as u64)).await;
             }
-            // Shared provider captures, bounded to three assets and four seconds
-            // each in parallel. The HTTP handler owns the entire lifetime.
+            // Shared provider captures, bounded to three assets with phase budgets
+            // in parallel. The HTTP handler owns the entire lifetime.
             let pending = futures_util::future::try_join_all(Asset::ALL.into_iter().map(
                 |asset| async move {
                     let path = phase.path(asset, open);
@@ -183,8 +187,24 @@ impl Archive {
             for (path, value) in pending.into_iter().flatten() {
                 stored += usize::from(self.create_checkpoint(&path, &value).await?);
             }
+            if let Some(runner) = runner {
+                let work = async {
+                    match phase {
+                        crate::checkpoint::Phase::Opening => runner.decide_cycle(open).await,
+                        crate::checkpoint::Phase::ExecutionCandidate => {
+                            runner.link_cycle(open).await
+                        }
+                    }
+                };
+                match tokio::time::timeout(Duration::from_secs(5), work).await {
+                    Ok(value) => research.push(value),
+                    Err(_) => {
+                        research.push(json!({"phase":phase.name(),"status":"runner_deadline"}))
+                    }
+                }
+            }
         }
-        Ok(json!({"status":"captured","stored":stored,"open":open}))
+        Ok(json!({"status":"captured","stored":stored,"open":open,"research":research}))
     }
 
     async fn create_checkpoint(&self, path: &str, value: &Value) -> Result<bool, Failure> {
@@ -206,7 +226,7 @@ impl Archive {
         Ok(true)
     }
 
-    async fn token(&self) -> Result<String, Failure> {
+    pub(crate) async fn token(&self) -> Result<String, Failure> {
         let mut auth = self.auth.lock().await;
         if let Some(a) = &*auth
             && Instant::now() < a.until
@@ -256,7 +276,31 @@ impl Archive {
         Ok(board)
     }
 
+    pub(crate) async fn cycle_document(
+        &self,
+        asset: Asset,
+        open: i64,
+        phase: crate::checkpoint::Phase,
+    ) -> Result<Option<Value>, Failure> {
+        self.saved_document(&phase.path(asset, open), 32_768).await
+    }
+
     async fn saved_payload(&self, path: &str, byte_limit: usize) -> Result<Option<Value>, Failure> {
+        let Some(doc) = self.saved_document(path, byte_limit).await? else {
+            return Ok(None);
+        };
+        let payload = doc
+            .pointer("/fields/payload/stringValue")
+            .and_then(Value::as_str)
+            .ok_or("Missing research payload")?;
+        Ok(Some(serde_json::from_str(payload)?))
+    }
+
+    async fn saved_document(
+        &self,
+        path: &str,
+        byte_limit: usize,
+    ) -> Result<Option<Value>, Failure> {
         let mut response = self
             .http
             .get(format!("{}/{path}", self.documents))
@@ -275,11 +319,7 @@ impl Archive {
             bytes.extend_from_slice(&chunk);
         }
         let doc: Value = serde_json::from_slice(&bytes)?;
-        let payload = doc
-            .pointer("/fields/payload/stringValue")
-            .and_then(Value::as_str)
-            .ok_or("Missing research payload")?;
-        Ok(Some(serde_json::from_str(payload)?))
+        Ok(Some(doc))
     }
     pub(crate) async fn context_get(&self) -> Result<Option<Value>, Failure> {
         let response = self
