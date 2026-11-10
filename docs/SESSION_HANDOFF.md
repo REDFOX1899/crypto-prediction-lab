@@ -5,7 +5,7 @@ Updated: 10 November 2026, America/New_York.
 ## Current checkout and deployed release
 
 - Repository: `/Users/shantanu/Documents/ChatGPT/Crypto Prediction Lab`; https://github.com/REDFOX1899/crypto-prediction-lab. Do not switch to the older Desktop checkout.
-- Branch `codex/blockworks-pilot`. Application commit **`a0da6c2`** is deployed. It is saved locally; pushing to GitHub main was rejected by automatic approval review because the deployment request did not explicitly authorize the default-branch mutation. A separate approval question was sent; no remote push occurred as of this handoff. Do not retry the push without that approval. GitHub main was verified as `f2e95bd` before the attempt.
+- Branch `codex/blockworks-pilot`. Application commit **`a0da6c2`** is deployed and published to GitHub main, together with the deployment documentation. The owner explicitly approved the GitHub main push on 10 November 2026 after the earlier automatic approval rejection. GitHub main was verified as `f2e95bd` before publication; the push is a normal fast-forward, with no force or history rewrite.
 - Public service `crypto-prediction-lab` now serves **100% `crypto-prediction-lab-00019-fab`**. Public URL: https://crypto-prediction-lab-308289525742.us-central1.run.app/?view=data.
 - Successful Cloud Build: **`9160cf3d-fcd2-4550-9c2f-c14a3a468aa6`**. Image tag `before-outcome-20261110-r1`; pinned digest **`sha256:776f5d3005205291a53c5d2e3a3b517b18353042329d321842012ae01c6e9ab8`** in the dedicated dashboard Artifact Registry repository.
 - Candidate was deployed with zero main-site traffic, passed real-data checks, then promoted. Temporary `before-outcome` tag was removed.
@@ -55,4 +55,4 @@ The owner requested a price/volume history pilot plus “Before this outcome” 
 - Public screenshot: `/private/tmp/before-outcome-production.jpg`.
 - Temporary reports: `/private/tmp/crypto-before-candidate-checks.json`, `/private/tmp/crypto-before-live-checks.json`; each records 39 passing checks. Service/IAM snapshots and build metadata are also under `/private/tmp/crypto-before-*` and are not committed.
 - Next: check the actual Blockworks credit charge before another fetch. Any recurring collection, expanded retention or model use requires its own concrete decision. No redeployment is needed for documentation-only updates.
-- GitHub push remains separate from the completed deployment; wait for explicit approval in this chat before changing main. Local source is safe in the feature commit. An earlier local preview at port 3005 may still show the old one-day-only configuration; use the public URL for this completed release.
+- The owner’s explicit GitHub publication approval has been applied. Future documentation-only changes do not require redeploying the application. An earlier local preview at port 3005 may still show the old one-day-only configuration; use the public URL for this completed release.

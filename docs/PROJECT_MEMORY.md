@@ -9,7 +9,7 @@ Crypto Prediction Lab is a public, read-only research dashboard for people follo
 - Repository: https://github.com/REDFOX1899/crypto-prediction-lab
 - Website: https://crypto-prediction-lab-308289525742.us-central1.run.app/
 - Working directory: the Git checkout attached to the Crypto Prediction Lab project. An older Desktop checkout also exists; use one active checkout at a time. The current project folder was initially empty and was populated from GitHub during session setup.
-- Application release commit: `a0da6c2` (seven-day price/volume pilot and cutoff research, Data Lab only). Deployed; remote GitHub publication awaits separate approval. Later documentation commits do not imply a new deployed image.
+- Application release commit: `a0da6c2` (seven-day price/volume pilot and cutoff research, Data Lab only). Deployed and published to GitHub main with the owner’s explicit approval. Later documentation commits do not imply a new deployed image.
 
 ## Implemented product
 
