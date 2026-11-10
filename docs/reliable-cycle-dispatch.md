@@ -27,3 +27,19 @@ The rejected Cloud Tasks design was removed before execution. This design uses S
 Early 503s are deliberate admission responses and are retried by Scheduler. They perform no collection or model writes. This adds one Scheduler job and bounded requests to the existing service. There is no always-on worker or raised CPU/memory/instance limit. The $40 monthly alert remains a target. The existing deterministic midpoint strategy and private storage remain in use. Service/provider outages can still cause explicit abstentions. The observation gates are unchanged.
 
 Tests cover original-quarter binding through retries, early/late admission, future window lookup without the stale status filter, direct metadata refresh, delayed targets, empty-book retries, partial receipt timestamps and the existing cutoff/hash/commit/link contracts. The required checks passed with 82 Rust tests, 58 frontend tests and 21 Python tests, plus fmt, locked clippy and whitespace checks. Live cycle results and deployment details follow after observation.
+
+## Three automatic live cycles verified
+
+The new jobs produced usable BTC, ETH and SOL inputs and eligible links in three consecutive automatic cycles on 10 November 2026. No manual capture or warm requests were used. Each source packet was durably available before its actual cutoff, each decision committed before +40s, and each candidate request followed commitment plus the one-second routing allowance. Independent checks reproduced all packet hashes and midpoint values and confirmed matching tickers. Private duplicate calls made after artifacts existed preserved every payload and object generation.
+
+| Cycle UTC | Usable opening inputs | Latest durable input | Latest decision commitment | Latest later-book receipt | Eligible links |
+|---|---:|---:|---:|---:|---:|
+| 22:00 | 3/3 | +9.421s | +9.724s | +45.247s | 3/3 |
+| 22:15 | 3/3 | +14.553s | +14.836s | +45.209s | 3/3 |
+| 22:30 | 3/3 | +12.484s | +12.833s | +45.271s | 3/3 |
+
+This is nine successful opening inputs, nine timely forecasts and nine timing-eligible links. The +30s source and +40s commitment gates were retained. The first cycle's ETH target required five attempts. The existing minute-10 job also saved usable books for all three assets after deployment. Anonymous new private routes were rejected, and the public dashboard exposes neither new phase route.
+
+The active collector revision is `crypto-history-collector-00012-fgq`, serving 100% of private traffic. Build `a1bda0e4-4bc3-4e7d-8e74-75dea910dd49` produced digest `sha256:887f3e2c439c74f10750016a29c04c7a791c786298d91faf36979a44a8e8b360`. Application source is `36a7ca8`; supported Scheduler configuration is `68f7436`. GitHub Actions passed both. Runtime identity, environment, mounts, CPU/memory, timeout, concurrency, min/max scale and invocation IAM were compared with the prior release. The history/CMC/minute-10 job configuration was retained.
+
+Verification files are local `/private/tmp/timing-all-cycles.json` and per-cycle `timing-proof-<open>.json`. Raw private records remain in GCP. The production deployment is tracked in [GitHub deployments](https://github.com/REDFOX1899/crypto-prediction-lab/deployments), record `7695568694`, environment `production-research`, linked to the actual GCP collector. This timing validation does not measure predictive profitability. Provider failures can still produce explicit abstentions.
