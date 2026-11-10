@@ -98,6 +98,52 @@ impl Archive {
         });
         Ok(value)
     }
+    pub(crate) async fn context_get(&self) -> Result<Option<Value>, Failure> {
+        let response = self
+            .http
+            .get(format!("{}/cmc_context/latest", self.documents))
+            .bearer_auth(self.token().await?)
+            .send()
+            .await?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        let doc: Value = response.error_for_status()?.json().await?;
+        Ok(doc
+            .pointer("/fields/payload/stringValue")
+            .and_then(Value::as_str)
+            .map(serde_json::from_str)
+            .transpose()?)
+    }
+    pub(crate) async fn context_put(&self, value: &Value, sample: bool) -> Result<(), Failure> {
+        let payload = serde_json::to_string(value)?;
+        self.http
+            .patch(format!("{}/cmc_context/latest", self.documents))
+            .bearer_auth(self.token().await?)
+            .json(&json!({"fields":{"payload":{"stringValue":payload}}}))
+            .send()
+            .await?
+            .error_for_status()?;
+        if sample {
+            let at = value["quotes_checked_at"]
+                .as_str()
+                .ok_or("Missing observation time")?;
+            let slot = DateTime::parse_from_rfc3339(at)?.timestamp() / 300;
+            let summary = json!({"at":at,"quotes":value["quotes"]});
+            self.http.patch(format!("{}/cmc_samples/s{slot}", self.documents)).bearer_auth(self.token().await?).json(&json!({"fields":{"captured_at":{"stringValue":at},"payload":{"stringValue":serde_json::to_string(&summary)?}}})).send().await?.error_for_status()?;
+        }
+        Ok(())
+    }
+    pub(crate) async fn context_recent(&self) -> Result<Vec<Value>, Failure> {
+        let rows: Vec<Value> = self.http.post(format!("{}:runQuery", self.documents)).bearer_auth(self.token().await?).json(&json!({"structuredQuery":{"select":{"fields":[{"fieldPath":"payload"}]},"from":[{"collectionId":"cmc_samples"}],"orderBy":[{"field":{"fieldPath":"captured_at"},"direction":"DESCENDING"}],"limit":24}})).send().await?.error_for_status()?.json().await?;
+        rows.iter()
+            .filter_map(|r| {
+                r.pointer("/document/fields/payload/stringValue")
+                    .and_then(Value::as_str)
+            })
+            .map(|s| serde_json::from_str(s).map_err(Into::into))
+            .collect()
+    }
     fn collection(asset: Asset) -> String {
         format!(
             "contracts_{}",

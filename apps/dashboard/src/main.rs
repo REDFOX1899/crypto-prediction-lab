@@ -1,5 +1,6 @@
 mod assets;
 mod combos;
+mod context;
 mod final_minute;
 mod history;
 mod order_book;
@@ -65,6 +66,7 @@ struct AppState {
     archive: Option<Arc<outcomes::Archive>>,
     combos: Arc<combos::Service>,
     polling: bool,
+    context: Arc<context::Context>,
 }
 async fn combo_quote(
     State(state): State<AppState>,
@@ -130,7 +132,38 @@ async fn outcome_board(
             .into_response(),
     }
 }
-async fn collect_history(State(archive): State<Arc<outcomes::Archive>>) -> Response {
+#[derive(Clone)]
+struct CollectorState {
+    archive: Arc<outcomes::Archive>,
+    context: Arc<context::Context>,
+}
+async fn context_board(State(state): State<AppState>) -> impl IntoResponse {
+    (
+        [(header::CACHE_CONTROL, "public, max-age=60")],
+        Json(state.context.board().await),
+    )
+}
+async fn collect_context(State(state): State<CollectorState>) -> Response {
+    match state.context.collect().await {
+        Ok(value) => Json(value).into_response(),
+        Err(error) => {
+            eprintln!("CMC collection incomplete: {error}");
+            (
+                StatusCode::BAD_GATEWAY,
+                "Context collection unavailable; retained prior observations",
+            )
+                .into_response()
+        }
+    }
+}
+async fn context_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/market-context.js"),
+    )
+}
+async fn collect_history(State(state): State<CollectorState>) -> Response {
+    let archive = state.archive;
     match archive.collect().await {
         Ok(stored) => Json(serde_json::json!({"stored":stored})).into_response(),
         Err(error) => {
@@ -348,12 +381,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| "127.0.0.1".into())
         .parse()?;
     let archive = outcomes::Archive::from_env().map_err(|_| "Invalid history configuration")?;
+    let context =
+        context::Context::new(archive.clone()).map_err(|_| "Invalid context configuration")?;
     if std::env::var("DASHBOARD_ROLE").as_deref() == Ok("collector") {
         let archive = archive.ok_or("Collector requires history configuration")?;
         let app = Router::new()
             .route("/collect", post(collect_history))
+            .route("/collect-context", post(collect_context))
             .route("/api/health", get(|| async { "ok" }))
-            .with_state(archive);
+            .with_state(CollectorState { archive, context });
         let listener = tokio::net::TcpListener::bind((address, port)).await?;
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown())
@@ -394,6 +430,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         workspaces: Arc::new(workspaces),
         archive,
         combos: combo_service,
+        context,
         polling,
     };
     let limiter = Arc::new(std::sync::Mutex::new(ApiBudget {
@@ -408,6 +445,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/", get(index))
         .route("/api/health", get(|| async { "ok" }))
         .route("/api/outcomes", get(outcome_board))
+        .route("/api/context", get(context_board))
+        .route("/assets/market-context.js", get(context_script))
         .route("/api/combos/quote", get(combo_quote))
         .route("/api/feeds", get(feeds))
         .route("/assets/feed-client.js", get(feed_script))

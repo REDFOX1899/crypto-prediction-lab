@@ -8,6 +8,8 @@ The application includes a live homepage, a shared single-market workspace and a
 
 [UI and data semantics](docs/focus-ui-design.md) · [History archive](docs/history-archive.md) · [Cost controls](docs/cost-controls.md) · [Data-engineering plan](docs/data-provider-engineering-plan.md)
 
+CoinMarketCap adds a separately labeled market-context section with shared scheduled collection, normalized Firestore observations, and a collector-only API key. See [CMC context and quotas](docs/coinmarketcap-context.md). Coinbase remains on hold.
+
 Direct CF Benchmarks and Coinbase integrations and durable high-frequency event capture are proposed in the data-engineering plan; they are not yet implemented.
 
 ## Run

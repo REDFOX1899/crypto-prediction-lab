@@ -128,7 +128,7 @@ function connect(g){for(const a of symbols){
  reference.onerror=()=>{if(!active||g!==generation)return;delete refs[a];referenceRender(a,nowMs())};
 }}
 
-function leave(){active=false;generation++;clearTimeout(timer);clearTimeout(historyTimer);clearInterval(clockTimer);feeds.forEach(f=>f.close());feeds=[];snapshotFlight?.controller.abort();historyFlight?.controller.abort();snapshotFlight=null;historyFlight=null}
-root.HomePage={enter(){leave();active=true;markets={};snapshots={};archived={};errors={};live={};received={};refs={};refReceived={};trails={};anchor=null;for(const a of symbols){text(`home-target-${a}`,'—');delete $(`home-yes-${a}`).dataset.price;delete $(`home-no-${a}`).dataset.price;text(`home-window-${a}`,'Finding the current market…')}const g=generation;clock();history();connect(g);refresh(g);loadHistory(g);clockTimer=setInterval(clock,1000)},leave};
+function leave(){root.MarketContext?.leave();active=false;generation++;clearTimeout(timer);clearTimeout(historyTimer);clearInterval(clockTimer);feeds.forEach(f=>f.close());feeds=[];snapshotFlight?.controller.abort();historyFlight?.controller.abort();snapshotFlight=null;historyFlight=null}
+root.HomePage={enter(){leave();active=true;markets={};snapshots={};archived={};errors={};live={};received={};refs={};refReceived={};trails={};anchor=null;for(const a of symbols){text(`home-target-${a}`,'—');delete $(`home-yes-${a}`).dataset.price;delete $(`home-no-${a}`).dataset.price;text(`home-window-${a}`,'Finding the current market…')}const g=generation;root.MarketContext?.enter();clock();history();connect(g);refresh(g);loadHistory(g);clockTimer=setInterval(clock,1000)},leave};
 document.addEventListener('visibilitychange',()=>{if(active&&!document.hidden){refresh(generation);if(!historyFlight){clearTimeout(historyTimer);loadHistory(generation)}}});
 })(typeof window!=='undefined'?window:globalThis);

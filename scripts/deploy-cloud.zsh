@@ -3,7 +3,7 @@ set -euo pipefail
 # Deploy only the crypto service. Runtime reads its two dedicated secrets.
 gcloud run deploy crypto-prediction-lab \
   --project=gitunderstand --region=us-central1 \
-  --image=us-central1-docker.pkg.dev/gitunderstand/crypto-prediction-lab/dashboard:focus-ui-20261109 \
+  --image=us-central1-docker.pkg.dev/gitunderstand/crypto-prediction-lab/dashboard:cmc-context-20261109-r3 \
   --service-account=crypto-prediction-lab@gitunderstand.iam.gserviceaccount.com \
   --port=8080 --cpu=0.25 --memory=256Mi --concurrency=1 --execution-environment=gen1 \
   --min=0 --max=1 --min-instances=0 --max-instances=1 \
