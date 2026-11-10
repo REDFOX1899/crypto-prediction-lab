@@ -12,8 +12,8 @@ The new client queries by series and the narrow expected close-time range, with 
 
 ## Scheduler contracts
 
-- `crypto-cycle-checkpoints` uses UTC `14,29,44,59 * * * *` and private `POST /collect-opening`. It allows up to 15 retries with a fixed five-second backoff and 100s retry window.
-- `crypto-cycle-followup` uses UTC `0,15,30,45 * * * *` and private `POST /collect-followup`. It allows up to two retries with the same bounded backoff/window.
+- `crypto-cycle-checkpoints` uses UTC `14,29,44,59 * * * *` and private `POST /collect-opening`. It uses retry count four with a five-second backoff and a 100s retry duration. Scheduler can exceed the count until both configured limits are reached.
+- `crypto-cycle-followup` uses UTC `0,15,30,45 * * * *` and private `POST /collect-followup`. It uses retry count two with the same backoff/duration. Both limits govern exhaustion.
 - Both use the existing dedicated scheduler identity and a 60s attempt deadline. `scripts/deploy-cycle-schedule.zsh` applies only these two jobs. History, minute-10 and CMC schedules retain their configuration.
 
 The original Scheduler schedule timestamp binds retries to the intended quarter. A stale retry cannot capture a later quarter. A missing timestamp falls back to the current nearby boundary for private operator use. Requests outside the admitted window stop without moving the cutoff. The first accepted dispatch is saved conditionally in `cycle_dispatch_v1/s<open>_<phase>` with receipt/schedule times and discovered IDs. It contains no future target/price observations.

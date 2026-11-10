@@ -1,7 +1,7 @@
 #!/bin/zsh
 set -euo pipefail
 service_url=$(gcloud run services describe crypto-history-collector --project=gitunderstand --region=us-central1 --format='value(status.url)')
-for cycle_job in crypto-cycle-checkpoints crypto-cycle-followup; do
+for cycle_job in crypto-cycle-followup crypto-cycle-checkpoints; do
   action=create
   if gcloud scheduler jobs describe "$cycle_job" --project=gitunderstand --location=us-central1 >/dev/null 2>&1; then
     action=update
@@ -9,7 +9,7 @@ for cycle_job in crypto-cycle-checkpoints crypto-cycle-followup; do
   if [[ "$cycle_job" == crypto-cycle-checkpoints ]]; then
     cycle_cron='14,29,44,59 * * * *'
     cycle_path=collect-opening
-    cycle_retries=15
+    cycle_retries=4
   else
     cycle_cron='0,15,30,45 * * * *'
     cycle_path=collect-followup
