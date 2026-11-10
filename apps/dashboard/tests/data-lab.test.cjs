@@ -52,5 +52,50 @@ test('leaving the lab aborts all reads and late replies cannot repaint another w
  function node(){return {textContent:'',dataset:{},style:{setProperty(){}},children:[],setAttribute(){},getAttribute(){return ''},append(...c){this.children.push(...c)},replaceChildren(){this.children=[]},addEventListener(){},querySelectorAll(){return []}}}
  const doc={hidden:false,getElementById(k){if(!nodes.has(k))nodes.set(k,node());return nodes.get(k)},createElement:node,querySelectorAll:()=>[],addEventListener(){}};
  const window={};vm.runInNewContext(fs.readFileSync(require.resolve('../public/data-lab.js'),'utf8'),{window,document:doc,Date,AbortController,URL,Blob,fetch:(url,opts)=>{signals.push(opts.signal);return new Promise(resolve=>pending.push(()=>resolve({ok:true,json:async()=>({status:'available',contracts:[],history:[]})})))},setTimeout(fn,ms){timers.set(++id,{fn,ms});return id},clearTimeout(id){timers.delete(id)}});
- window.DataLab.enter();assert.equal(pending.length,4);window.DataLab.leave();assert.ok(signals.every(s=>s.aborted));pending.forEach(fn=>fn());await new Promise(setImmediate);assert.equal(nodes.get('lab-status').textContent,'Loading recorded observations…');assert.equal(timers.size,0);
+ window.DataLab.enter();assert.equal(pending.length,5);window.DataLab.leave();assert.ok(signals.every(s=>s.aborted));pending.forEach(fn=>fn());await new Promise(setImmediate);assert.equal(nodes.get('lab-status').textContent,'Loading recorded observations…');assert.equal(timers.size,0);
+});
+
+test('Blockworks rows retain explicit gaps, reject cross-source data and distinguish zero volume',()=>{
+ const {blockworksRows}=require('../public/data-lab.js');
+ const candle={time:0,open:10,high:12,low:9,close:11,volume:0};
+ const board={status:'available',snapshot:{schema_version:1,provider:'Blockworks',model:'asset-price',granularity:'5m',start:0,end:900,captured_at:1200,series:[{asset:'BTC',candles:[candle,{...candle,time:300,volume:null},{...candle,time:600,high:8}]}]}};
+ const rows=blockworksRows(board,'BTC',1200000);assert.equal(rows.length,3);assert.equal(rows[0].candle.volume,0);assert.equal(rows[1].candle.volume,null);assert.equal(rows[2].candle,null);
+ assert.deepEqual(blockworksRows(board,'ETH',1200000),[]);
+ board.snapshot.provider='Other';assert.deepEqual(blockworksRows(board,'BTC',1200000),[]);
+ board.snapshot.provider='Blockworks';board.snapshot.series[0].candles.push(candle);assert.equal(blockworksRows(board,'BTC',1200000)[0].candle,null);
+ board.snapshot.captured_at=1300;assert.deepEqual(blockworksRows(board,'BTC',1200000),[]);
+});
+test('relative volume uses thirteen consecutive complete candles and refuses gaps and zero baseline',()=>{
+ const {volumeRatio}=require('../public/data-lab.js');
+ const rows=Array.from({length:13},(_,i)=>({time:i*300,candle:{volume:i===12?20:10}}));assert.equal(volumeRatio(rows),2);
+ rows[0].candle.volume=null;assert.equal(volumeRatio(rows),null);
+ rows[0].candle=null;assert.equal(volumeRatio(rows),null);
+ assert.equal(volumeRatio([]),null);
+ assert.equal(volumeRatio(rows.map(r=>({...r,candle:{volume:0}}))),null);
+});
+
+test('before-outcome responses must match asset, window and exact requested cutoff',()=>{
+ const {validBefore}=require('../public/data-lab.js');
+ const c=contract('BTC',now,'yes',{ticker:'KXBTC15M-TEST'}),data={status:'available',asset:'BTC',ticker:c.ticker,minute:10,cutoff:(now-STEP)/1000+600};
+ assert.equal(validBefore(data,c,10),true);
+ for(const extra of [{asset:'ETH'},{ticker:'OTHER'},{minute:5},{cutoff:data.cutoff+1},{status:'unavailable'}])assert.equal(validBefore({...data,...extra},c,10),false);
+ assert.equal(validBefore(data,c,15),false);
+});
+
+test('changing the before cutoff and leaving the workspace cancel reads and discard late replies',async()=>{
+ const nodes=new Map(),pending=[],signals=[],timers=new Map();let next=0;
+ function node(){return {textContent:'',dataset:{},style:{setProperty(){}},children:[],events:{},attrs:{},setAttribute(k,v){this.attrs[k]=v},getAttribute(k){return this.attrs[k]||''},append(...c){this.children.push(...c)},replaceChildren(...c){this.children=[...c]},addEventListener(k,f){this.events[k]=f},querySelectorAll(){return []}}}
+ const cutoffs=[0,5,10,14].map(n=>{const b=node();b.dataset.beforeMinute=String(n);return b}),assetButtons=['BTC','ETH','SOL'].map(a=>{const b=node();b.dataset.beforeAsset=a;return b});
+ const doc={hidden:false,getElementById(k){if(!nodes.has(k))nodes.set(k,node());return nodes.get(k)},createElement:node,createElementNS:node,querySelectorAll(sel){return sel==='[data-before-minute]'?cutoffs:sel==='[data-before-asset]'?assetButtons:[]},addEventListener(){}};
+ const close=Math.floor(Date.now()/STEP)*STEP,c=contract('BTC',close,'yes',{ticker:'KXBTC15M-TEST'}),window={};
+ vm.runInNewContext(fs.readFileSync(require.resolve('../public/data-lab.js'),'utf8'),{window,document:doc,Date,AbortController,URL,Blob,fetch:async(url,opts)=>{
+  if(url.startsWith('/api/research/before')){signals.push(opts.signal);return new Promise(resolve=>pending.push(()=>resolve({ok:true,json:async()=>({status:'available',asset:'BTC',ticker:c.ticker,minute:10,cutoff:(close-STEP)/1000+600})})))}
+  return {ok:true,json:async()=>url==='/api/outcomes?asset=BTC'?{status:'available',contracts:[c]}:{status:'not_configured',contracts:[],history:[]}};
+ },setTimeout(fn,ms){timers.set(++next,{fn,ms});return next},clearTimeout(id){timers.delete(id)}});
+ window.DataLab.enter();await new Promise(setImmediate);
+ const cells=nodes.get('lab-ribbons').children[0].children[1].children;cells.at(-1).events.click();assert.equal(pending.length,1);
+ cutoffs[1].events.click();assert.equal(pending.length,2);assert.equal(signals[0].aborted,true);
+ pending[0]();await new Promise(setImmediate);assert.ok(nodes.get('lab-before-status').textContent.startsWith('Loading BTC'));
+ window.DataLab.leave();assert.equal(signals[1].aborted,true);pending[1]();await new Promise(setImmediate);assert.equal(timers.size,0);
+ assert.ok(nodes.get('lab-before-status').textContent.startsWith('Loading BTC'));
 });

@@ -1,4 +1,5 @@
 mod assets;
+mod blockworks;
 mod combos;
 mod context;
 mod delivery;
@@ -7,6 +8,7 @@ mod history;
 mod order_book;
 mod outcomes;
 mod reference;
+mod research;
 mod stream;
 
 use assets::{Asset, Selection};
@@ -68,6 +70,13 @@ struct AppState {
     combos: Arc<combos::Service>,
     polling: bool,
     context: Arc<context::Context>,
+    blockworks: Arc<blockworks::Service>,
+}
+async fn blockworks_board(State(state): State<AppState>) -> impl IntoResponse {
+    (
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(state.blockworks.board().await),
+    )
 }
 async fn combo_quote(
     State(state): State<AppState>,
@@ -163,6 +172,67 @@ async fn archived_window(
         _ => (
             StatusCode::BAD_GATEWAY,
             "Archived quotes temporarily unavailable",
+        )
+            .into_response(),
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BeforeSelection {
+    asset: Asset,
+    ticker: String,
+    minute: u8,
+}
+async fn before_outcome(
+    State(state): State<AppState>,
+    Query(q): Query<BeforeSelection>,
+) -> Response {
+    if !outcomes::valid_ticker(&q.ticker, q.asset) || ![0, 5, 10, 14].contains(&q.minute) {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Choose a supported asset, archived ticker and cutoff",
+        )
+            .into_response();
+    }
+    let Some(archive) = &state.archive else {
+        return Json(serde_json::json!({"status":"not_configured"})).into_response();
+    };
+    let result = tokio::time::timeout(std::time::Duration::from_secs(12), async {
+        let (board, detail, context, snapshot) = tokio::join!(
+            archive.board(q.asset),
+            archive.detail(q.asset, &q.ticker),
+            state.context.research_board(),
+            state.blockworks.snapshot()
+        );
+        let board = board.map_err(|_| "Archive unavailable")?;
+        let contract = board
+            .contracts
+            .iter()
+            .find(|c| c.ticker == q.ticker)
+            .ok_or("Window not in recent archive")?;
+        let detail = detail
+            .map_err(|_| "Quote archive unavailable")?
+            .ok_or("Window not found")?;
+        research::before(
+            contract,
+            &detail,
+            &context,
+            snapshot.ok().flatten().as_ref(),
+            q.minute,
+            Utc::now().timestamp(),
+        )
+    })
+    .await;
+    match result {
+        Ok(Ok(value)) => {
+            ([(header::CACHE_CONTROL, "public, max-age=60")], Json(value)).into_response()
+        }
+        Ok(Err(_)) => {
+            (StatusCode::NOT_FOUND, "Recent completed window unavailable").into_response()
+        }
+        Err(_) => (
+            StatusCode::GATEWAY_TIMEOUT,
+            "Before-outcome research timed out",
         )
             .into_response(),
     }
@@ -435,6 +505,9 @@ async fn reference_live(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if std::env::var("DASHBOARD_ROLE").as_deref() == Ok("blockworks-pilot") {
+        return blockworks::pilot().await.map_err(|e| e.to_string().into());
+    }
     let port: u16 = std::env::var("PORT")
         .or_else(|_| std::env::var("DASHBOARD_PORT"))
         .unwrap_or_else(|_| "3000".into())
@@ -443,6 +516,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| "127.0.0.1".into())
         .parse()?;
     let archive = outcomes::Archive::from_env().map_err(|_| "Invalid history configuration")?;
+    let blockworks =
+        blockworks::Service::new(address, archive.clone()).map_err(|e| e.to_string())?;
     let context =
         context::Context::new(archive.clone()).map_err(|_| "Invalid context configuration")?;
     if std::env::var("DASHBOARD_ROLE").as_deref() == Ok("collector") {
@@ -494,6 +569,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         combos: combo_service,
         context,
         polling,
+        blockworks,
     };
     let limiter = Arc::new(std::sync::Mutex::new(ApiBudget {
         tokens: 120.0,
@@ -510,6 +586,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/archive/window", get(archived_window))
         .route("/api/context", get(context_board))
         .route("/api/context/history", get(research_context))
+        .route("/api/blockworks", get(blockworks_board))
+        .route("/api/research/before", get(before_outcome))
         .route("/assets/data-lab.js", get(data_lab_script))
         .route("/assets/data-lab.css", get(data_lab_style))
         .route("/assets/market-context.js", get(context_script))

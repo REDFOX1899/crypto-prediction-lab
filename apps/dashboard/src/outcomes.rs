@@ -100,6 +100,35 @@ impl Archive {
         });
         Ok(value)
     }
+    /// Fixed collection for the manually published, licensed research pilot; no writes.
+    pub(crate) async fn blockworks_document(&self, id: &str) -> Result<Option<Value>, Failure> {
+        if id.len() > 80 || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            return Err("Invalid research document ID".into());
+        }
+        let mut response = self
+            .http
+            .get(format!("{}/blockworks_pilots/{id}", self.documents))
+            .bearer_auth(self.token().await?)
+            .send()
+            .await?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(None);
+        }
+        response.error_for_status_ref()?;
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response.chunk().await? {
+            if bytes.len() + chunk.len() > 900_000 {
+                return Err("Research document exceeds limit".into());
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        let doc: Value = serde_json::from_slice(&bytes)?;
+        let payload = doc
+            .pointer("/fields/payload/stringValue")
+            .and_then(Value::as_str)
+            .ok_or("Missing research payload")?;
+        Ok(Some(serde_json::from_str(payload)?))
+    }
     pub(crate) async fn context_get(&self) -> Result<Option<Value>, Failure> {
         let response = self
             .http

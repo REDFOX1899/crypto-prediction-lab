@@ -28,7 +28,7 @@ python3 scripts/preview-data-lab.py
 
 Open http://127.0.0.1:3002/?view=data. This loopback helper serves local assets and reads existing public data; it cannot read private minute-candle payloads or demonstrate the full new 24-hour query. Use the configured Rust application to verify those cloud reads end to end before deployment.
 
-Blockworks evaluation, credit planning and the proposed Google Cloud archive are documented in [the data plan](docs/blockworks-data-plan.md). Access discovery returned HTTP 403; no Blockworks observations are integrated. Its API key stays outside the repository, and no new collection schedule or cloud resources were enabled.
+Data Lab also includes a saved Blockworks BTC/ETH/SOL price-and-volume pilot and a “Before this outcome” inspector. Select an outcome cell to inspect completed intervals before a chosen cutoff, with retrospective downloads labeled separately from saved collection timestamps. CF reference and order-book history are marked unavailable when not archived. The one-time seven-day pilot is bounded; public refreshes cannot invoke provider collection, and exports exclude Blockworks. See [timing, deployment and data provenance](docs/before-outcome.md) and [pilot commands and credits](docs/blockworks-data-plan.md).
 
 ## Run
 

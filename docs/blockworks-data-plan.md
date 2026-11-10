@@ -1,6 +1,6 @@
 # Blockworks: a focused research month
 
-Research date: 9 November 2026, America/New_York. This is a collection proposal, not a deployed integration, license grant or prediction result.
+Research date: 9 November 2026, America/New_York. A bounded local pilot is now implemented and verified; the recurring collection/cloud archive below remains a proposal. This is not a license grant or prediction result.
 
 ## Decision
 
@@ -8,7 +8,7 @@ Use the trial to evaluate independent historical context for BTC, ETH and SOL. P
 
 The screenshot supplied by the owner shows 10,000 credits worth $100, expiring 9 December 2026. This is a Blockworks allowance, not Google Cloud credit. The official claim page says promotional credits last 30 days. The balance and expiration time have not been independently read from the account. [Credit promotion](https://app.blockworks.com/claim).
 
-The saved key was used only for bounded catalog discovery. Authenticated catalog requests returned HTTP 403; no market observations were downloaded, no key was logged or copied into the repository, and no automated retry loop was started. A 403 does not establish which datasets this account can access or whether the key itself is valid. Endpoint-specific credit costs and actual billed credits remain unverified.
+Initial Python catalog/authentication probes returned HTTP 403. Follow-up diagnosis identified Cloudflare error 1010 (`browser_signature_banned`). A standard curl ping succeeded, including with the saved key. After identifying the actual application with a truthful User-Agent, both the Python diagnostic and Rust pilot succeeded. A single 24-hour batch returned 288 valid candles for each asset. No credentials were printed or copied into the repository. Endpoint-specific credit costs and actual billed credits remain unverified; authentication success does not verify every dataset entitlement.
 
 ## Data priorities and real resolution
 
@@ -29,7 +29,7 @@ API catalogs describe supported intervals and account-accessible models. Credit 
 
 The public terms restrict bulk extraction, external display and AI/ML use unless expressly authorized. Their Data/API exhibit also addresses deletion after the applicable agreement ends. The exact accepted account terms and any order-form exceptions must be confirmed; promotional credit expiry alone does not tell us when the license ends. Ask Blockworks specifically about internal GCP storage, historical backfills, retention after the trial, statistical research/model use, derived outputs and public dashboard display. Do not infer permission from downloadable CSV support or marketing examples. [Terms, especially Exhibit D](https://blockworks.com/terms).
 
-Until those uses are confirmed, the integration stays at discovery and planning. The new public-facing Data Lab uses the existing Kalshi/CMC responses; it includes no Blockworks observations. Nothing has been uploaded to Google Cloud or scheduled from this work.
+The implemented evaluation is limited to a manually invoked local 24-hour snapshot and a loopback Data Lab projection. Bulk backfills, recurring collection, cloud retention, public display and model training remain pending. The deployed public Data Lab still includes no Blockworks observations. Nothing has been uploaded to Google Cloud or scheduled from this work.
 
 ## Credit plan after access and prices are verified
 
@@ -82,8 +82,46 @@ A complete 30-day period would contain 2,880 shared quarter-hour windows and at 
 - `scripts/blockworks-audit.py`: catalog-only entitlement diagnostic with no automatic retries or data extraction. The key is read server-side from the supplied external file.
 - `scripts/preview-data-lab.py`: loopback visual preview against existing public API responses. It intentionally cannot read private stored minute-candle payloads. The Rust archive route needs the application's configured database identity for an end-to-end populated cloud check.
 
-Next: obtain confirmed API access and permitted uses, then measure a tightly bounded collection pilot. No collection schedule or deployment should be inferred from this plan.
+The initial access findings above were superseded by the verified local pilot below. No collection schedule or public deployment should be inferred from this plan.
 
 ## Subsequent Data Lab publication
 
-The owner subsequently requested publication. Application release `63c67ac` was pushed to GitHub and deployed as public revision `crypto-prediction-lab-00016-mer`. Real archived Kalshi minute quotes and existing CMC history passed deployed checks. This does not activate the proposed Blockworks collector or archive: access remains unverified after HTTP 403, and no Blockworks observations, subscriptions or new cloud collection were added.
+The owner subsequently requested publication. Application release `63c67ac` was pushed to GitHub and deployed as public revision `crypto-prediction-lab-00016-mer`. Real archived Kalshi minute quotes and existing CMC history passed deployed checks. This does not activate the proposed Blockworks collector or archive: that publication contained no Blockworks observations, subscriptions or new cloud collection. The subsequent local-only pilot below resolved authentication.
+
+
+## Verified local pilot
+
+Completed 9 November 2026, America/New_York (capture `2026-11-10T04:46:22Z`). Branch `codex/blockworks-pilot`; not deployed or pushed. All three asset series returned 288 valid five-minute candles with zero rejected points and no null volume values. The half-open requested provider-timestamp range is `2026-11-09T04:40:00Z` to `2026-11-10T04:40:00Z`. The conservative five-minute embargo does not establish publication latency or historical availability. Actual API response `volume` metadata did not specify a unit, so the UI labels it unverified despite the broader reference text describing USD volume. Candle timestamp start/end convention remains unverified; no Kalshi window join is inferred.
+
+The earlier 403 was a diagnostic error: Cloudflare blocked Python's default client signature before API authentication. The key was valid. `CryptoPredictionLab/0.1 (read-only Blockworks evaluation)` truthfully identifies this application for both clients; verified ping now returns HTTP 200 / authenticated true. The diagnostic classifies future Cloudflare failures separately from invalid-key or account-permission errors, never printing the provider body or key.
+
+`apps/dashboard/src/blockworks.rs` implements the existing Rust application's explicit `blockworks-pilot` role. It exits after at most three requests: accessible timeseries catalog, canonical BTC/ETH/SOL ID lookup, then one batched asset-price request. It refuses pre-existing output paths, follows no redirects, has a 20-second per-request timeout and 2 MB response/file bounds. No retry loop or schedule exists. Provider point_schema determines metric order; USD price units, UUIDs, asset names, OHLC bounds and timestamp windows are validated. Duplicate series/timestamps and ambiguous schemas stop the pilot; bad points remain gaps. Missing series stay empty; missing volume is distinct from zero. Only the normalized schema is saved with owner-only file permissions.
+
+The sole real snapshot is ignored local data at `data/blockworks-pilot-20261110.json` (not committed). To inspect that existing snapshot without additional Blockworks requests:
+
+```sh
+BLOCKWORKS_LOCAL_SNAPSHOT=data/blockworks-pilot-20261110.json \
+DASHBOARD_PORT=3005 cargo run --offline --locked -p dashboard
+```
+
+Open `http://127.0.0.1:3005/?view=data`. The read-only `/api/blockworks` route serves an immutable normalized startup projection, with no key, request headers or raw response. POST returns 405. Without a snapshot it returns `not_configured`. A configured snapshot on a non-loopback bind is rejected at startup. Browser refreshes and asset switches cannot spend Blockworks credits. The source ledger distinguishes Blockworks; observation exports continue to exclude it.
+
+For another explicitly chosen small pilot, after checking usage and permitted uses:
+
+```sh
+mkdir -p data
+BLOCKWORKS_API_KEY_PATH=/Users/shantanu/Desktop/Secrets/blockworks-api-key.txt \
+BLOCKWORKS_PILOT_OUTPUT=data/blockworks-next-pilot.json \
+DASHBOARD_ROLE=blockworks-pilot cargo run --offline --locked -p dashboard
+```
+
+This is request-bounded, **not a monetary or credit spending cap**. The single verified collection used three requests; additional diagnostic pings also occurred. No actual credit balance/charge was read. Compare usage on the account page before another data fetch. No automatic purchase, paid upgrade, additional category enablement or GCP changes occurred. Keep the proposed 8,000/2,000 allocation as a proposal until actual prices are known.
+
+Next: check the measured credit charge, verify bucket convention/volume units and source delay, and confirm permitted public display/retention before extending beyond local evaluation. The next useful family is settled funding; Monitoring is optional and does not need enabling for this candle explorer.
+
+
+## Production extension — 10 November 2026
+
+The owner requested the seven-day price/volume pilot plus a “Before this outcome” inspector in Data Lab and explicitly authorized production deployment. The owner separately confirmed that the account agreement permits public BTC/ETH/SOL price/volume display. This supersedes the earlier local-display-only boundary for that data; it does not authorize model training or establish indefinite retention rights.
+
+A single three-request batch returned 6,048 valid candles, 2,016 per asset, with no rejected points. The normalized file is `data/blockworks-seven-day-20261110.json`, excluded from Git/build uploads. The operator publisher stored three immutable asset records and one latest manifest in the existing named app database. The public app reads those saved observations with its existing viewer identity; it receives no Blockworks key and has no collection route. Display is bounded to a day of chart candles plus a cutoff-filtered preceding hour per inspected window. No recurring collection or additional subscription was introduced. Exact timing, record names and verification are in [before-outcome.md](before-outcome.md) and the current handoff. Actual credit charges remain unverified.

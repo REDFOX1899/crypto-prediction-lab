@@ -12,11 +12,47 @@ from urllib.error import HTTPError, URLError
 MODELS = {"asset-price", "market", "market-price", "perpetual-markets",
           "perpetual-market-funding-rates", "perp-dex-protocols", "asset-volatility"}
 MAX_BYTES = 4_000_000
+USER_AGENT = "CryptoPredictionLab/0.1 (read-only Blockworks evaluation)"
 
 
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         return None  # Never forward the authentication header to another location.
+
+
+def ping(key):
+    """One diagnostic request. Only fixed categories leave this process on failures."""
+    request = Request("https://api.blockworks.com/query/ping",
+                      headers={"X-Blockworks-API-Key": key, "Accept": "application/json", "User-Agent": USER_AGENT})
+    try:
+        with build_opener(NoRedirect()).open(request, timeout=20) as response:
+            raw = response.read(65537)
+            if len(raw) > 65536:
+                raise ValueError("Oversized ping response")
+            payload = json.loads(raw)
+            return {"http_status": response.status,
+                    "authenticated": payload.get("error") is None and payload.get("data", {}).get("message") == "pong"}
+    except HTTPError as error:
+        category = "unclassified_access_failure"
+        try:
+            payload = json.loads(error.read(65536))
+            if payload.get("cloudflare_error") is True:
+                category = "cloudflare_access_denied"
+            message = payload.get("error", "")
+            if isinstance(message, str):
+                lower = message.lower()
+                if "invalid" in lower and "key" in lower:
+                    category = "invalid_api_key"
+                elif "permission" in lower or "subscription" in lower:
+                    category = "account_permission"
+                elif "access denied" in lower or "blocked" in lower:
+                    category = "access_denied"
+        except (ValueError, AttributeError, TypeError, OSError):
+            pass
+        return {"http_status": error.code, "authenticated": False,
+                "failure_category": category, "stopped_without_retry": True}
+    except (URLError, TimeoutError, OSError):
+        raise ValueError("Ping connection unavailable; stopped without retry") from None
 
 
 def audit(key):
@@ -26,7 +62,7 @@ def audit(key):
               "credit_cost": "Unverified; rate-limit headers do not measure API credits."}
     for kind in ("tabular", "timeseries"):
         request = Request(f"https://api.blockworks.com/query/{kind}/catalog?accessible=true&publicOnly=true",
-                          headers={"X-Blockworks-API-Key": key, "Accept": "application/json"})
+                          headers={"X-Blockworks-API-Key": key, "Accept": "application/json", "User-Agent": USER_AGENT})
         try:
             with opener.open(request, timeout=20) as response:
                 raw = response.read(MAX_BYTES + 1)
@@ -55,11 +91,16 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--key-file", type=Path, required=True)
     parser.add_argument("--output", type=Path, default=Path("data/blockworks-access-audit.json"))
+    parser.add_argument("--ping-only", action="store_true", help="One authentication check; no catalog, data or output file")
     args = parser.parse_args()
     try:
         key = args.key_file.read_text().strip()
         if not key or len(key) > 512 or any(c.isspace() for c in key):
             raise ValueError("Key file must contain only the API key")
+        if args.ping_only:
+            result = ping(key)
+            print(json.dumps(result))
+            return 0 if result["authenticated"] else 1
         report = audit(key)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         fd = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)

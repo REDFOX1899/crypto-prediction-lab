@@ -39,6 +39,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlsplit(self.path)
+        if parsed.path == "/api/blockworks":
+            self.reply(200, b'{"status":"not_configured","series":[]}')
+            return
         if parsed.path == "/api/archive/window":
             self.reply(200, b'{"status":"not_configured","candles":[]}')
             return

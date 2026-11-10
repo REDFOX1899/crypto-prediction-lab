@@ -1,6 +1,6 @@
 # Project memory
 
-Last updated: 9 November 2026, America/New_York. This is the short orientation for a fresh chat. Confirm changing operational facts before acting on them.
+Last updated: 10 November 2026, America/New_York. This is the short orientation for a fresh chat. Confirm changing operational facts before acting on them.
 
 ## What we are building
 
@@ -25,7 +25,9 @@ Crypto Prediction Lab is a public, read-only research dashboard for people follo
 
 Branch `codex/data-lab` adds a fourth Data Lab workspace, aligned outcomes and coverage, shared CMC comparisons, source/sample inspection and observation export. New read-only routes normalize archived minute quotes and project up to 24 hours of existing CMC history. The owner authorized publication, and this release is now on GitHub main and deployed. Public responses use fast gzip before outbound-byte accounting to prevent large page assets being crowded out by polling; existing bandwidth/resource limits remain. Real archived minute quotes and the bounded CMC history route passed public checks. The current handoff has verification details.
 
-Blockworks is being evaluated using the owner's promotional credits. Catalog access returned HTTP 403. No market data was collected or published. Long-term storage, public display and model use require confirmed account rights; the collection/storage proposal is in `blockworks-data-plan.md`. Coinbase remains on hold.
+Blockworks authentication is verified. The owner explicitly confirmed public-display permission on 10 November 2026 and requested production publication of the price/volume pilot and “Before this outcome” inspector, limited to Data Lab. A one-time seven-day batch returned 6,048 valid five-minute BTC/ETH/SOL candles. Normalized observations were atomically saved as three immutable asset documents plus a manifest in `blockworks_pilots`, using the existing named database; no API key or new cloud identity is needed by the dashboard. Public display requires an explicit approval flag and the recorded manifest confirmation; it reads a ten-minute shared cache, shows at most 24 hours in the chart and never invokes collection. No new schedule or always-on worker is authorized or enabled.
+
+Before-outcome research filters completed intervals to open/+5/+10/+14 minute cutoffs. Retrospective Blockworks/Kalshi downloads are distinguished from CMC collection timestamps; missing CF reference and historical book data are explicit. Outcomes, expiration values and hindsight entries are excluded from feature calculations. This is not a point-in-time training dataset or model. Credit charges, volume denomination and provider timestamp convention/publication delay remain unverified; model-use and long-term retention rights remain separate questions. See `before-outcome.md` for source semantics and `blockworks-data-plan.md` for the earlier pilot. Coinbase remains on hold.
 
 ## Stack and source map
 
@@ -61,6 +63,7 @@ The app has a $40 monthly budget alert, not a hard cap. Preserve resource/egress
 
 ## Where to look next
 
+- Cutoff research and saved Blockworks display: `before-outcome.md`.
 - Latest handoff and pending work: `SESSION_HANDOFF.md`.
 - Blockworks access findings, credit plan and proposed archive: `blockworks-data-plan.md`.
 - Suggested, unapproved next features: `roadmap.md`.
