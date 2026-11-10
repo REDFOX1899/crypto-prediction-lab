@@ -30,3 +30,11 @@ test('asset switches and leaving the workspace reject late feed messages',()=>{
  view.disconnect();assert.equal(nodes.get('final-distance').textContent,'—');
  view.pause();view.update({...s,asset:'ETH',target:'500'});assert.equal(nodes.get('final-target').textContent,'$200.00');
 });
+test('threshold expires with delayed transport, disconnect, close and a stale source',()=>{
+ const final={...s,phase:'final_minute',close_time_ms:120000,required_remaining_average:'99.80',threshold_status:'available',remaining_seconds:20};
+ assert.equal(model(final).required_remaining_average,'99.80');
+ assert.equal(model(final,3001).required_remaining_average,null);
+ assert.equal(model({...final,source_state:'disconnected'}).required_remaining_average,null);
+ assert.equal(model({...final,source_time_ms:80000}).required_remaining_average,null);
+ assert.equal(model(final,20000).required_remaining_average,null);
+});

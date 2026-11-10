@@ -9,6 +9,8 @@ function model(s,elapsedMs=0){
  return {...s,phase,fresh,coverage,seconds:Number.isFinite(close)?Math.max(0,Math.ceil((close-now)/1000)):null,
   startsIn:Number.isFinite(close)?Math.max(0,Math.ceil((close-60000-now)/1000)):null,
   distance_usd:fresh&&phase!=='closed'&&phase!=='metadata_stale'?s.distance_usd:null,
+  required_remaining_average:fresh&&phase==='final_minute'&&s.phase==='final_minute'&&elapsedMs<=3000?s.required_remaining_average:null,
+  threshold_status:phase!=='final_minute'?phase:!fresh?'stale_reference':elapsedMs>3000?'updates_delayed':s.threshold_status,
   distance_percent:fresh&&phase!=='closed'&&phase!=='metadata_stale'?s.distance_percent:null};
 }
 if(typeof module!=='undefined')module.exports={model};
@@ -38,6 +40,11 @@ function render(){
  const coverage=m?.coverage||'-'.repeat(60);
  Array.from(strip.children).forEach((cell,i)=>{const state=coverage[i]==='1'?'observed':coverage[i]==='0'?'missing':'future';cell.dataset.state=state;cell.title=`Second ${i+1}: ${state==='future'?'not completed at last update':state}`});
  strip.setAttribute('aria-label',`${observed} observed, ${elapsed-observed} missing, ${60-elapsed} not completed at last update`);
+ const threshold=m?.required_remaining_average,status=m?.threshold_status;
+ $('final-required').textContent=threshold==null?'—':status==='any_positive_average'?'Any positive average':money(threshold)+' or higher';
+ const reasons={before_final:'Available during the final 60 seconds',closed:'Window closed',metadata_stale:'Market details stale',waiting_market:'Waiting for an active market',invalid_target:'Numeric at-or-above target unavailable',stale_reference:'Waiting for fresh reference data',missing_seconds:'Unavailable — elapsed reference seconds are missing',updates_delayed:'Waiting for the next feed update',calculation_unavailable:'Calculation unavailable'};
+ $('final-required-note').textContent=threshold==null?(reasons[status]||'Waiting for reference observations'):
+   `${m.remaining_seconds} remaining seconds · as of ${new Date(m.server_time_ms).toLocaleTimeString()} · rounded upward`;
  $('final-asof').textContent=m?`Coverage as of ${new Date(m.server_time_ms).toLocaleTimeString()}${performance.now()-received>15000?' · updates delayed':''}`:'Coverage appears as source seconds complete.';
 }
 root.FinalMinuteView={select(symbol){asset=symbol;data=null;active=true;render()},pause(){active=false;data=null},update(summary){if(!active||summary?.asset!==asset)return;if(data&&summary.server_time_ms<data.server_time_ms)return;data=summary;received=performance.now();render()},disconnect(){if(data)data={...data,source_state:'disconnected',distance_usd:null,distance_percent:null};render()}};

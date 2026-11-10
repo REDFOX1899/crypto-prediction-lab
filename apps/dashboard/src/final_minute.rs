@@ -1,7 +1,7 @@
 //! Bounded, per-asset observations; never substitutes for official settlement data.
 use crate::assets::Asset;
 use kalshi_client::Market;
-use rust_decimal::Decimal;
+use rust_decimal::{Decimal, RoundingStrategy};
 use serde::Serialize;
 use std::{
     collections::BTreeMap,
@@ -32,6 +32,9 @@ pub struct Summary {
     pub observed_seconds: usize,
     pub elapsed_seconds: usize,
     pub coverage: String,
+    pub required_remaining_average: Option<Decimal>,
+    pub remaining_seconds: usize,
+    pub threshold_status: &'static str,
 }
 /// Validate before advancing a feed's monotonic timestamp marker.
 pub fn valid_time(now: i64, source: i64) -> bool {
@@ -87,6 +90,9 @@ impl Recorder {
             observed_seconds: 0,
             elapsed_seconds: 0,
             coverage: "-".repeat(60),
+            required_remaining_average: None,
+            remaining_seconds: 60,
+            threshold_status: "waiting_market",
         };
         let Some(m) = &self.market else {
             return s;
@@ -107,6 +113,7 @@ impl Recorder {
         } else {
             "before_final"
         };
+        s.threshold_status = s.phase;
         if s.phase == "metadata_stale" {
             return s;
         }
@@ -144,6 +151,39 @@ impl Recorder {
             .collect();
         if s.observed_seconds > 0 {
             s.observed_average = Some((total / Decimal::from(s.observed_seconds)).round_dp(8));
+        }
+        s.remaining_seconds = 60 - s.elapsed_seconds;
+        if s.phase == "final_minute" {
+            s.threshold_status = if s.target.is_none() {
+                "invalid_target"
+            } else if state != "live" || s.distance_usd.is_none() {
+                "stale_reference"
+            } else if s.observed_seconds != s.elapsed_seconds {
+                "missing_seconds"
+            } else {
+                "available"
+            };
+            if s.threshold_status == "available" {
+                s.required_remaining_average = s
+                    .target
+                    .and_then(|target| target.checked_mul(Decimal::from(60)))
+                    .and_then(|full| full.checked_sub(total))
+                    .and_then(|remaining| remaining.checked_div(Decimal::from(s.remaining_seconds)))
+                    .map(|required| {
+                        required.round_dp_with_strategy(
+                            asset.info().reference_precision,
+                            RoundingStrategy::ToPositiveInfinity,
+                        )
+                    });
+                if s.required_remaining_average.is_none() {
+                    s.threshold_status = "calculation_unavailable";
+                } else if s
+                    .required_remaining_average
+                    .is_some_and(|n| n <= Decimal::ZERO)
+                {
+                    s.threshold_status = "any_positive_average";
+                }
+            }
         }
         s
     }
@@ -231,6 +271,84 @@ mod tests {
         assert_eq!(s.coverage, "1".repeat(60));
         assert_eq!(s.observed_average.unwrap().to_string(), "129.50");
     }
+    #[test]
+    fn threshold_uses_unrounded_sum_and_all_remaining_seconds() {
+        let (mut r, t) = setup();
+        for sec in 0..40 {
+            let at = t + sec * 1000 + 100;
+            r.observe(at, at, Decimal::new(10010, 2));
+        }
+        r.market(Asset::Btc, Some(&market()), t + 40000);
+        let s = r.summary(Asset::Btc, t + 40000, "live");
+        assert_eq!(s.threshold_status, "available");
+        assert_eq!(s.remaining_seconds, 20);
+        assert_eq!(s.required_remaining_average, Some(Decimal::new(9980, 2)));
+        r.samples.remove(&(t / 1000 + 3));
+        assert_eq!(
+            r.summary(Asset::Btc, t + 40000, "live").threshold_status,
+            "missing_seconds"
+        );
+        assert_eq!(
+            r.summary(Asset::Btc, t + 40000, "live")
+                .required_remaining_average,
+            None
+        );
+    }
+
+    #[test]
+    fn threshold_clears_on_disconnect_close_and_before_the_final_minute() {
+        let (mut r, t) = setup();
+        r.observe(t, t, Decimal::from(100));
+        assert_eq!(
+            r.summary(Asset::Btc, t, "live").required_remaining_average,
+            Some(Decimal::from(100))
+        );
+        assert_eq!(
+            r.summary(Asset::Btc, t, "reconnecting")
+                .required_remaining_average,
+            None
+        );
+        assert_eq!(
+            r.summary(Asset::Btc, t - 1, "live")
+                .required_remaining_average,
+            None
+        );
+        assert_eq!(
+            r.summary(Asset::Btc, t + 60000, "live")
+                .required_remaining_average,
+            None
+        );
+        let mut invalid = market();
+        invalid.strike_type = Some("less".into());
+        r.market(Asset::Btc, Some(&invalid), t);
+        assert_eq!(
+            r.summary(Asset::Btc, t, "live").threshold_status,
+            "invalid_target"
+        );
+    }
+
+    #[test]
+    fn threshold_rounds_up_and_handles_nonpositive_requirements() {
+        let (mut r, t) = setup();
+        r.observe(t, t, Decimal::new(9999, 2));
+        assert_eq!(
+            r.summary(Asset::Btc, t + 1000, "live")
+                .required_remaining_average,
+            Some(Decimal::new(10001, 2))
+        );
+        r.observe(t + 1, t + 1, Decimal::new(100001, 3));
+        assert_eq!(
+            r.summary(Asset::Btc, t + 1000, "live")
+                .required_remaining_average,
+            Some(Decimal::from(100))
+        );
+        r.observe(t + 100, t + 100, Decimal::from(10000));
+        assert_eq!(
+            r.summary(Asset::Btc, t + 1000, "live").threshold_status,
+            "any_positive_average"
+        );
+    }
+
     #[test]
     fn memory_is_bounded_without_inventing_observations() {
         let mut r = Recorder::default();
