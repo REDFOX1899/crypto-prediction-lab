@@ -19,14 +19,14 @@ function render(){
  const latest=candles.at(-1);
  $('replay-quote').textContent=latest?'Last recorded YES ask '+cents(latest.close)+' · minute '+Math.round((latest.time+60-start)/60):'No completed quote minute yet';
  $('replay-coverage').textContent=candles.length+' of '+minute+' elapsed minutes recorded · retrospective Kalshi YES ask candles';
- const graph=$('replay-chart');graph.replaceChildren();
- for(const p of [0,25,50,75,100]){const y=195-p*1.6;graph.append(svg('line',{x1:42,x2:880,y1:y,y2:y,stroke:'var(--border)'}));const t=svg('text',{x:1,y:y+4});t.textContent=p+'¢';graph.append(t)}
- for(let m=0;m<=15;m+=5){const t=svg('text',{x:42+m/15*830,y:220,'text-anchor':'middle'});t.textContent=m+'m';graph.append(t)}
+ const graph=$('replay-chart'),width=graph.clientWidth<600?450:900,span=width-70;graph.setAttribute('viewBox','0 0 '+width+' 235');graph.replaceChildren();
+ for(const p of [0,25,50,75,100]){const y=195-p*1.6;graph.append(svg('line',{x1:42,x2:width-20,y1:y,y2:y,stroke:'var(--border)'}));const t=svg('text',{x:1,y:y+4});t.textContent=p+'¢';graph.append(t)}
+ for(let m=0;m<=15;m+=5){const t=svg('text',{x:42+m/15*span,y:220,'text-anchor':'middle'});t.textContent=m+'m';graph.append(t)}
  let previous=null,path='';
- for(const c of candles){const x=42+(c.time+60-start)/900*830,y=195-Number(c.close)*160;
+ for(const c of candles){const x=42+(c.time+60-start)/900*span,y=195-Number(c.close)*160;
  path+=(previous!==null&&c.time-previous===60?'L':'M')+x+','+y+' ';previous=c.time;
  graph.append(svg('circle',{cx:x,cy:y,r:4,fill:'var(--accent)'}))}
- graph.append(svg('path',{d:path,fill:'none',stroke:'var(--accent)','stroke-width':2}),svg('line',{x1:42+minute/15*830,x2:42+minute/15*830,y1:25,y2:195,stroke:'var(--muted)','stroke-dasharray':'3 4'}));
+ graph.append(svg('path',{d:path,fill:'none',stroke:'var(--accent)','stroke-width':2}),svg('line',{x1:42+minute/15*span,x2:42+minute/15*span,y1:25,y2:195,stroke:'var(--muted)','stroke-dasharray':'3 4'}));
  graph.setAttribute('aria-label',candles.length+' recorded minute quotes through minute '+minute+'; future quotes hidden');
  const values=$('replay-values');values.replaceChildren();
  for(const c of candles){const row=document.createElement('tr');for(const text of [String((c.time+60-start)/60),cents(c.open),cents(c.high),cents(c.low),cents(c.close)]){const cell=document.createElement('td');cell.textContent=text;row.append(cell)}values.append(row)}
@@ -70,6 +70,7 @@ $('replay-play').addEventListener('click',()=>{
  if(timer){stop();return}if(Number($('replay-minute').value)===15)$('replay-minute').value='0';
  $('replay-play').textContent='Pause';timer=setInterval(()=>{$('replay-minute').value=String(Number($('replay-minute').value)+1);render();if(Number($('replay-minute').value)===15)stop()},1000);
 });
+root.addEventListener('resize',()=>{if(dialog.open)render()});
 document.addEventListener('visibilitychange',()=>{if(document.hidden)stop()});
 root.MarketReplay={open,close(){cancel();if(dialog.open)dialog.close()},async latest(asset){
  cancel();const g=generation,controller=new AbortController();flight=controller;const timeout=setTimeout(()=>controller.abort(),10000);
