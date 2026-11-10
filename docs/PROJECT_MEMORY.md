@@ -9,11 +9,11 @@ Crypto Prediction Lab is a public, read-only research dashboard for people follo
 - Repository: https://github.com/REDFOX1899/crypto-prediction-lab
 - Website: https://crypto-prediction-lab-308289525742.us-central1.run.app/
 - Working directory: the Git checkout attached to the Crypto Prediction Lab project. An older Desktop checkout also exists; use one active checkout at a time. The current project folder was initially empty and was populated from GitHub during session setup.
-- Application release commit `bf17fdc` brings the quote/outcome study and market desk to the public dashboard and GitHub main. Later documentation commits do not imply a new deployed image.
+- Application release commit `eb5ac13` isolates page loads from market polling on the public quote/outcome dashboard and is published on GitHub main. Later documentation commits do not imply a new deployed image.
 
 ## Implemented product
 
-**Home** (`/`): three live market cards with CF reference values, fixed contract targets, signed distance from target, countdown to the final minute, short observed-price SVG charts, YES/NO asks, visible bid-size shares and recent official outcome cells. Visitors share server-side feeds; production browser polling is every two seconds while visible and slower in background.
+**Home** (`/`): three live market cards with CF reference values, fixed contract targets, signed distance from target, countdown to the final minute, short observed-price SVG charts, YES/NO asks, visible bid-size shares and recent official outcome cells. Visitors share server-side feeds. Visible tabs poll every two seconds and background tabs slow down. Page startup has separate request and transfer allowances. Home requests a twelve-result projection from the shared outcomes archive cache.
 
 **Single market** (`/?view=market&asset=BTC`; also ETH/SOL): shared selector, TradingView Lightweight Charts 5.2.1 with line/one-minute candlesticks, reference and contract history where available, an always-visible order book with depth bars, recorded outcomes, and final-minute countdown/observed average/data coverage. Observations and historical candles have explicit source/availability semantics.
 
@@ -45,9 +45,9 @@ Before-outcome research filters completed intervals to open/+5/+10/+14 minute cu
 
 Google Cloud project `gitunderstand`, number `308289525742`, region `us-central1`. This is a shared project; do not modify unrelated services or project-wide billing/IAM.
 
-- Public service `crypto-prediction-lab`: revision `crypto-prediction-lab-00022-huh` at the last release. Dashboard identity has database viewer access, and retains only its Kalshi secret access.
+- Public service `crypto-prediction-lab`: revision `crypto-prediction-lab-00027-cuc` at the last release. Dashboard identity has database viewer access, and retains only its Kalshi secret access.
 - Private service `crypto-history-collector`: revision `crypto-history-collector-00005-msp`. Collector identity writes only the dedicated database and reads the dedicated CMC key. No Kalshi trading credentials are added.
-- Public image tag `quote-study-bf17fdc` came from build `845a963e-c98d-45d3-94a0-0afb31218074` with digest `sha256:27b710aa273aa7ae02d132db6cd4f5f3d840770fa1a90b9e41c6d6d30296aec6`. The private collector remains on its previous CMC release.
+- Public image tag `availability-eb5ac13` came from build `b671b447-6cae-48fa-aebb-022511e8541f` with digest `sha256:1e192dc8c800f7216f9869c637959f197cbbec11d80eb057d0ae34a0b1bfc720`. The private collector remains on its previous CMC release.
 - Both services retain request-based CPU, first-generation execution, 0.25 vCPU, 256 MiB, concurrency one, min zero, max one and startup CPU boost off. Dashboard timeout 30 seconds; collector timeout 60 seconds. These settings do not guarantee a particular latency or exact monthly bill.
 - Named Firestore database `crypto-prediction-lab`. Default database is unrelated. `contracts_btc`, `contracts_eth`, `contracts_sol` retain settled market records/minute candles and summaries. `cmc_context/latest` holds normalized current context; `cmc_samples` holds combined three-asset sampled observations.
 - Existing private history schedule: `crypto-history-quarter-hour`, minutes 2/17/32/47 UTC. New private CMC schedule: `crypto-market-context`, every five minutes. Both use the existing dedicated scheduler identity and service-level invocation rights.
