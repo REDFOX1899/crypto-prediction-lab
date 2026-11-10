@@ -1,5 +1,7 @@
 # Private production pilot
 
+> Historical proposal. The owner subsequently chose public access and deployed the app to the existing `gitunderstand` project. The login recommendation, pending-input list and "no cloud resources" status below are not current requirements. Read [PROJECT_MEMORY.md](PROJECT_MEMORY.md), [public deployment](public-deployment.md) and [cost controls](cost-controls.md) for the current system. This earlier plan is retained for design history.
+
 Initial audience: five invited users following BTC, ETH and SOL 15-minute markets.
 Operating scope: read-only analysis. No order submission or enabled payments.
 

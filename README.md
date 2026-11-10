@@ -4,6 +4,8 @@ A read-only Rust dashboard and client for BTC, ETH and SOL 15-minute Kalshi mark
 
 Public dashboard: https://crypto-prediction-lab-308289525742.us-central1.run.app/
 
+New chat or contributor? Start with [project memory](docs/PROJECT_MEMORY.md), [latest handoff](docs/SESSION_HANDOFF.md) and [session guide](docs/SESSION_GUIDE.md). Repository working rules are in [AGENTS.md](AGENTS.md). Use the folder containing this Cargo workspace as your Codex project directory.
+
 The application includes a live homepage, a shared single-market workspace and a combo research view. Features include light/dark themes, observed-price SVG plots, interactive charts, an always-visible order book, final-minute coverage and a Firestore settlement archive. Private combo RFQs and trading remain disabled.
 
 [UI and data semantics](docs/focus-ui-design.md) · [History archive](docs/history-archive.md) · [Cost controls](docs/cost-controls.md) · [Data-engineering plan](docs/data-provider-engineering-plan.md)

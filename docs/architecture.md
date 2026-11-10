@@ -1,5 +1,7 @@
 # Architecture
 
+For the deployed product and source map, start with [PROJECT_MEMORY.md](PROJECT_MEMORY.md). Production serves Home, Single market and Combo lab using shared two-second browser polling; local mode also supports SSE. A separate IAM-protected collector stores settlements and scheduled CoinMarketCap context in the dedicated Firestore database. The public application only reads this archive. See [CMC context](coinmarketcap-context.md) and [cost controls](cost-controls.md) for the current collection and hosting behavior.
+
 One Rust application serves a shared market workspace for BTC, ETH and SOL. `assets.rs` is the crypto-only allowlist: it maps each asset to a Kalshi 15-minute series and its CF Benchmarks index. API query parameters deserialize into an `Asset` enum; unsupported assets fail with HTTP 400 before upstream requests.
 
 A shared `Client` reuses HTTP connections. Each asset has independent ticker/order-book stream state, a reference stream, and a history cache. All dashboard tabs for the same asset consume the same stream state. `Arc` shares ownership safely; Tokio watch channels retain the latest display state with bounded memory. Each asset has its own rollover and reconnect handling. Data collection for durable replay would need a separate loss-aware path before UI coalescing.
