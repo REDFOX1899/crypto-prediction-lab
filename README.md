@@ -18,6 +18,10 @@ Direct CF Benchmarks and Coinbase integrations and durable high-frequency event 
 
 The public dashboard compares archived YES asks with official results at minutes 5, 10 and 14. Choose an asset and price band to see the observed settlement rate, the break-even rate before fees and the eligible sample count. The first study covers November 7–9 UTC and is saved in the app's named Firestore database. [Chart definitions, storage and refresh commands](docs/quote-study.md)
 
+## Market replay
+
+Choose **Replay last completed window** on a Home asset card, **Replay this market** in Single market settled details, or **Replay** in Data Lab. Scrub from minute 0 to 15 or press Play. Future quote candles stay hidden and the official result appears at the end. Minute-10 books appear only after their actual receipt time. [Replay and checkpoint collection](docs/market-replay.md)
+
 ## Data Lab
 
 The new `/?view=data` workspace compares aligned BTC/ETH/SOL official outcomes, records coverage, and charts shared CMC returns and correlations with sample counts. Select an outcome cell to inspect the contract summaries, then choose an asset for its stored one-minute YES-ask OHLC. Exact values and missing minutes remain visible. Export observations as JSON for inspection; the export is not a point-in-time training dataset.

@@ -6,7 +6,7 @@ The line shows archived one-minute YES ask closes on a fixed 0–100¢ scale. Ex
 
 ## Prospective checkpoint collection
 
-The private `crypto-history-collector` service exposes `POST /collect-minute-ten` under its existing Cloud Run IAM policy. The public dashboard has no matching write route. Scheduler job `crypto-minute-ten` invokes it at UTC minutes 10/25/40/55 using the existing dedicated scheduler identity. It has no automatic retries and a 60-second attempt deadline. No continuously running worker or new provider subscription is used.
+The private `crypto-history-collector` service exposes `POST /collect-minute-ten` under its existing Cloud Run IAM policy. The handler enforces a 50-second internal deadline below the service’s 60-second request timeout. The public dashboard has no matching write route. Scheduler job `crypto-minute-ten` invokes it at UTC minutes 10/25/40/55 using the existing dedicated scheduler identity. It has no automatic retries and a 60-second attempt deadline. No continuously running worker or new provider subscription is used.
 
 The handler only starts collection during seconds 600–659 of the current 15-minute interval. It checks the market belongs to that exact interval. It saves one document per asset and open time to `minute_ten_v1/s<open_timestamp>_<symbol>` in the named `crypto-prediction-lab` database. Conditional creation preserves the first attempt. Duplicate requests read the existing record. Successfully stored assets survive partial failure.
 
