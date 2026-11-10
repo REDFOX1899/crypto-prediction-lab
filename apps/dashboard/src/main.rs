@@ -1,5 +1,6 @@
 mod assets;
 mod blockworks;
+mod checkpoint;
 mod combos;
 mod context;
 mod delivery;
@@ -243,6 +244,56 @@ struct BeforeSelection {
     asset: Asset,
     ticker: String,
     minute: u8,
+}
+async fn replay_checkpoint(
+    State(state): State<AppState>,
+    Query(q): Query<ArchiveSelection>,
+) -> Response {
+    if !outcomes::valid_ticker(&q.ticker, q.asset) {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    let Some(archive) = state.archive else {
+        return Json(serde_json::json!({"status":"not_recorded"})).into_response();
+    };
+    let result = tokio::time::timeout(std::time::Duration::from_secs(10), async {
+        let detail = archive
+            .detail(q.asset, &q.ticker)
+            .await?
+            .ok_or("Window unavailable")?;
+        let open =
+            DateTime::parse_from_rfc3339(detail["open_time"].as_str().ok_or("Missing open")?)?
+                .timestamp();
+        archive.minute_ten(q.asset, open).await
+    })
+    .await;
+    match result {
+        Ok(Ok(value)) => (
+            [(header::CACHE_CONTROL, "public, max-age=60")],
+            Json(value.unwrap_or_else(|| serde_json::json!({"status":"not_recorded"}))),
+        )
+            .into_response(),
+        _ => (StatusCode::BAD_GATEWAY, "Saved checkpoint unavailable").into_response(),
+    }
+}
+
+async fn collect_minute_ten(State(state): State<CollectorState>) -> Response {
+    match state.archive.collect_minute_ten().await {
+        Ok(result) => Json(result).into_response(),
+        Err(_) => (StatusCode::BAD_GATEWAY, "Minute 10 collection failed").into_response(),
+    }
+}
+
+async fn replay_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/market-replay.js"),
+    )
+}
+async fn replay_style() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/css; charset=utf-8")],
+        include_str!("../public/market-replay.css"),
+    )
 }
 async fn before_outcome(
     State(state): State<AppState>,
@@ -651,6 +702,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let app = Router::new()
             .route("/collect", post(collect_history))
             .route("/collect-context", post(collect_context))
+            .route("/collect-minute-ten", post(collect_minute_ten))
             .route("/api/health", get(|| async { "ok" }))
             .with_state(CollectorState { archive, context });
         let listener = tokio::net::TcpListener::bind((address, port)).await?;
@@ -718,6 +770,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/assets/quote-study.js", get(study_script))
         .route("/assets/quote-study.css", get(study_style))
         .route("/api/research/before", get(before_outcome))
+        .route("/api/research/checkpoint", get(replay_checkpoint))
+        .route("/assets/market-replay.js", get(replay_script))
+        .route("/assets/market-replay.css", get(replay_style))
         .route("/assets/data-lab.js", get(data_lab_script))
         .route("/assets/data-lab.css", get(data_lab_style))
         .route("/assets/market-context.js", get(context_script))

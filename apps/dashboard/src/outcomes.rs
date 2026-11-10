@@ -43,7 +43,7 @@ impl Board {
     /// Home only draws twelve official-result cells. The full board remains available to research views.
     pub fn recent(&self) -> Value {
         let contracts: Vec<_> = self.contracts.iter().take(12).map(|c| json!({
-            "asset": c.asset, "open_time": c.open_time, "close_time": c.close_time, "result": c.result
+            "ticker":c.ticker, "asset": c.asset, "open_time": c.open_time, "close_time": c.close_time, "result": c.result
         })).collect();
         json!({"status": self.status, "fetched_at": self.fetched_at, "contracts": contracts})
     }
@@ -96,6 +96,54 @@ impl Archive {
             detail_cache: Mutex::new(HashMap::new()),
         })))
     }
+    pub(crate) async fn minute_ten(
+        &self,
+        asset: Asset,
+        open: i64,
+    ) -> Result<Option<Value>, Failure> {
+        let symbol = serde_json::to_value(asset)?
+            .as_str()
+            .ok_or("Invalid asset")?
+            .to_owned();
+        self.saved_payload(&format!("minute_ten_v1/s{open}_{symbol}"), 32_768)
+            .await
+    }
+
+    pub(crate) async fn collect_minute_ten(&self) -> Result<Value, Failure> {
+        let _guard = self
+            .collection_lock
+            .try_lock()
+            .map_err(|_| "Collection already running")?;
+        let Some(open) = crate::checkpoint::slot(Utc::now().timestamp()) else {
+            return Ok(json!({"status":"outside_capture_minute","stored":0}));
+        };
+        let client = kalshi_client::Client::new()?;
+        let mut stored = 0;
+        for asset in Asset::ALL {
+            if self.minute_ten(asset, open).await?.is_some() {
+                continue;
+            }
+            let observation = crate::checkpoint::capture(&client, asset, open).await;
+            let symbol = serde_json::to_value(asset)?
+                .as_str()
+                .ok_or("Invalid asset")?
+                .to_owned();
+            let name = format!("{}/minute_ten_v1/s{open}_{symbol}", self.documents);
+            let response = self.http.post(format!("{}:commit",self.documents)).bearer_auth(self.token().await?)
+                .json(&json!({"writes":[{"update":{"name":name,"fields":{"payload":{"stringValue":serde_json::to_string(&observation)?}}},
+                "currentDocument":{"exists":false}}]})).send().await?;
+            if response.status() == reqwest::StatusCode::CONFLICT {
+                if self.minute_ten(asset, open).await?.is_none() {
+                    return Err("Checkpoint conflict".into());
+                }
+            } else {
+                response.error_for_status()?;
+                stored += 1;
+            }
+        }
+        Ok(json!({"status":"captured","stored":stored,"open":open}))
+    }
+
     async fn token(&self) -> Result<String, Failure> {
         let mut auth = self.auth.lock().await;
         if let Some(a) = &*auth

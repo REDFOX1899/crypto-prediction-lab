@@ -1,0 +1,12 @@
+#market-replay{width:min(940px,94vw);max-height:90vh;padding:26px;border:1px solid var(--border);border-radius:18px;background:var(--surface);color:var(--text);box-shadow:0 24px 100px #0005;overflow:auto}
+#market-replay::backdrop{background:#071c24b8;backdrop-filter:blur(4px)}
+.replay-heading,.replay-controls{display:flex;align-items:center;gap:16px;justify-content:space-between}
+.replay-heading h2{font:500 32px Georgia,serif;margin:0}.replay-heading button,.replay-controls button,.replay-launch{border:1px solid var(--border);border-radius:8px;padding:10px 14px;background:var(--surface2);color:var(--text);cursor:pointer;min-height:40px}
+#replay-window,#replay-coverage,.replay-note{color:var(--muted);font-size:12px;line-height:1.7;overflow-wrap:anywhere}
+#replay-outcome{padding:12px;background:var(--accent-soft);border-radius:8px;color:var(--text)}
+#replay-chart{width:100%;display:block;max-height:270px}#replay-chart text{fill:var(--muted);font:12px ui-monospace,monospace}
+.replay-controls label{flex:1}.replay-controls input{width:100%;accent-color:var(--accent)}#replay-time{font-variant-numeric:tabular-nums;white-space:nowrap}
+#market-replay table{width:100%;border-collapse:collapse;font-size:12px}#market-replay td,#market-replay th{padding:8px;text-align:left;border-bottom:1px solid var(--border);overflow-wrap:anywhere}
+#replay-checkpoint{font-size:12px;line-height:1.7;margin-top:18px;overflow-wrap:anywhere}
+.replay-launch{font-size:12px;margin:8px 0}
+@media(max-width:600px){#market-replay{padding:18px}.replay-heading h2{font-size:25px}.replay-controls{gap:10px;flex-wrap:wrap}.replay-controls label{min-width:130px}#replay-chart{height:180px}}

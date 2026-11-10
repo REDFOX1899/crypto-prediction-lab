@@ -29,6 +29,7 @@ function detail(c){
   for(const [value,label] of [[`${(Number(entry.ask)*100).toLocaleString(undefined,{maximumFractionDigits:3})}¢`,'Lowest winning-side ask'],[`${Number(entry.gross_multiple).toFixed(2)}×`,'Theoretical gross payout / cost'],[money(1),'Settlement payout per winning contract']]){const node=document.createElement('div'),b=document.createElement('b'),span=document.createElement('span');b.textContent=value;span.textContent=label;node.append(b,span);values.append(node)}host.append(values);
   line('Gross multiple = $1 ÷ quoted ask. Hypothetical profit per winning contract = $1 minus that ask, before fees. Quote size and queue position are not known; this was not a guaranteed trade.');
  }else line('No valid pre-close winning-side quote was available. We do not invent an entry price or payout multiple.');
+ const replay=document.createElement('button');replay.type='button';replay.className='replay-launch';replay.textContent='Replay this market';replay.addEventListener('click',()=>root.MarketReplay.open(c));host.append(replay);
  line(`${c.candle_count} source candle records stored · ${c.ticker}`);
 }
 function render(){
