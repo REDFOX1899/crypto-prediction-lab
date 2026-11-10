@@ -24,4 +24,20 @@ The active service settings and IAM should be compared before and after deployme
 
 ## First scheduled observation
 
-The first automatic 18:00 UTC cycle stored all six records. ETH and SOL opening books and all three +45s candidates were available. BTC opening discovery failed twice and was saved as unavailable at 18:00:18 UTC. That record remains immutable. This prompted the bounded opening retry extension and the delayed-discovery regression test. It does not supply a recovered historical BTC book. Full-cycle verification follows on a subsequent automatic run.
+The first automatic 18:00 UTC cycle stored all six records. ETH and SOL opening books and all three +45s candidates were available. BTC opening discovery failed twice and was saved as unavailable at 18:00:18 UTC. That record remains immutable. This prompted the bounded opening retry extension and the delayed-discovery regression test. It does not supply a recovered historical BTC book. The bounded retry was verified on the next automatic cycle. The later 18:15 UTC full-cycle evidence below comes from revision `crypto-history-collector-00009-ddl`. The final timeout receipt guard is a subsequent release, covered by its own regression test and runtime checks.
+
+## Successful scheduled verification
+
+At 18:15 UTC (1:15 PM Eastern), all six records were available, with positive targets, two-sided uncrossed books and ten levels on each native bid side. Both phases matched the same actual ticker per asset. All component times were ordered, and each receipt preceded its immutable Firestore creation. ETH opening needed a second discovery attempt and succeeded within the opening deadline.
+
+| Asset | Opening receipt UTC | Execution-candidate receipt UTC | Saved phases |
+|---|---|---|---:|
+| BTC | 2026-11-10T18:15:25.871359413Z | 2026-11-10T18:15:45.125302351Z | 2 |
+| ETH | 2026-11-10T18:15:26.890947399Z | 2026-11-10T18:15:45.107507703Z | 2 |
+| SOL | 2026-11-10T18:15:25.850799507Z | 2026-11-10T18:15:45.159615309Z | 2 |
+
+The independent verifier ran at 18:15:49 UTC and invoked a duplicate inside the same eligible minute. The response was `captured` with zero new writes. Exact payloads, creation times and update times were unchanged for all six records. The first 18:00 UTC BTC opening failure was retained. Normal calendar-driven collection did not overwrite it.
+
+Anonymous private POST returned 403, the public dashboard has no collection write path, and authenticated out-of-window invocation stored zero records. The existing minute-10 job was independently read back for BTC/ETH/SOL after the first collector update. Collector identity, secret mounts, CPU/memory, timeout, concurrency, min/max scale and IAM were compared with the original configuration. Existing history/CMC/minute-10 job configuration was retained. All 69 Rust tests, 58 frontend tests and 21 Python tests passed, as did formatting, clippy and GitHub Actions.
+
+Final collector revision `crypto-history-collector-00010-dhx` uses build `60047978-e70b-4baa-bfc7-7e3018dcc3a1` and image digest `sha256:d324a2f35307dfc92842640c904099282a5eeecf4eaa8c952e1dd18f5ce7a73c`. It was deployed after the successful 18:15 cycle. The final change clears only an unfinished retry's receipt field and adds the timeout regression test. Authenticated health, anonymous denial, out-of-window no-write behavior, original-record preservation and configuration/IAM comparison passed on that revision.
