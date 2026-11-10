@@ -276,6 +276,26 @@ async fn replay_checkpoint(
     }
 }
 
+async fn collect_cycle(State(state): State<CollectorState>) -> Response {
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(50),
+        state.archive.collect_cycle(),
+    )
+    .await
+    {
+        Ok(Ok(result)) => Json(result).into_response(),
+        Ok(Err(error)) => {
+            eprintln!("Cycle collection failed: {error}");
+            (StatusCode::BAD_GATEWAY, "Cycle collection failed").into_response()
+        }
+        Err(_) => (
+            StatusCode::GATEWAY_TIMEOUT,
+            "Cycle collection deadline reached",
+        )
+            .into_response(),
+    }
+}
+
 async fn collect_minute_ten(State(state): State<CollectorState>) -> Response {
     match tokio::time::timeout(
         std::time::Duration::from_secs(50),
@@ -716,6 +736,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .route("/collect", post(collect_history))
             .route("/collect-context", post(collect_context))
             .route("/collect-minute-ten", post(collect_minute_ten))
+            .route("/collect-cycle", post(collect_cycle))
             .route("/api/health", get(|| async { "ok" }))
             .with_state(CollectorState { archive, context });
         let listener = tokio::net::TcpListener::bind((address, port)).await?;

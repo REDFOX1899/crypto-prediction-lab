@@ -148,6 +148,64 @@ impl Archive {
         Ok(json!({"status":"captured","stored":stored,"open":open}))
     }
 
+    pub(crate) async fn collect_cycle(&self) -> Result<Value, Failure> {
+        let _guard = self
+            .collection_lock
+            .try_lock()
+            .map_err(|_| "Collection already running")?;
+        let Some(open) = crate::checkpoint::opening_slot(Utc::now().timestamp()) else {
+            return Ok(json!({"status":"outside_capture_minute","stored":0}));
+        };
+        let client = kalshi_client::Client::new()?;
+        let client = &client;
+        let mut stored = 0;
+        for phase in [
+            crate::checkpoint::Phase::Opening,
+            crate::checkpoint::Phase::ExecutionCandidate,
+        ] {
+            let wait_ms = (open + phase.offset()) * 1000 - Utc::now().timestamp_millis();
+            if wait_ms > 0 {
+                tokio::time::sleep(Duration::from_millis(wait_ms as u64)).await;
+            }
+            // Shared provider captures, bounded to three assets and four seconds
+            // each in parallel. The HTTP handler owns the entire lifetime.
+            let pending = futures_util::future::try_join_all(Asset::ALL.into_iter().map(
+                |asset| async move {
+                    let path = phase.path(asset, open);
+                    if self.saved_payload(&path, 32_768).await?.is_some() {
+                        return Ok::<_, Failure>(None);
+                    }
+                    let value = crate::checkpoint::capture_cycle(client, asset, open, phase).await;
+                    Ok(Some((path, value)))
+                },
+            ))
+            .await?;
+            for (path, value) in pending.into_iter().flatten() {
+                stored += usize::from(self.create_checkpoint(&path, &value).await?);
+            }
+        }
+        Ok(json!({"status":"captured","stored":stored,"open":open}))
+    }
+
+    async fn create_checkpoint(&self, path: &str, value: &Value) -> Result<bool, Failure> {
+        let name = format!(
+            "{}/{path}",
+            self.documents
+                .trim_start_matches("https://firestore.googleapis.com/v1/")
+        );
+        let response = self.http.post(format!("{}:commit", self.documents)).bearer_auth(self.token().await?)
+            .json(&json!({"writes":[{"update":{"name":name,"fields":{"payload":{"stringValue":serde_json::to_string(value)?}}},
+                "currentDocument":{"exists":false}}]})).send().await?;
+        if response.status() == reqwest::StatusCode::CONFLICT {
+            if self.saved_payload(path, 32_768).await?.is_none() {
+                return Err("Checkpoint conflict".into());
+            }
+            return Ok(false);
+        }
+        response.error_for_status()?;
+        Ok(true)
+    }
+
     async fn token(&self) -> Result<String, Failure> {
         let mut auth = self.auth.lock().await;
         if let Some(a) = &*auth
@@ -631,6 +689,63 @@ mod tests {
                 serde_json::to_value(archive.quote_study().await.unwrap().unwrap()).unwrap();
             assert_eq!(public, crate::quote_study::tests::example());
         }
+    }
+
+    #[tokio::test]
+    async fn checkpoint_create_is_conditional_and_duplicate_retains_first_record() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{body_partial_json, method, path},
+        };
+        let server = MockServer::start().await;
+        let value = json!({"schema_version":1,"received_at":"2026-11-10T18:00:21Z"});
+        Mock::given(method("POST")).and(path("/documents:commit"))
+            .and(body_partial_json(json!({"writes":[{"update":{"name":format!("{}/documents/cycle_snapshots_v1/test",server.uri()),
+                "fields":{"payload":{"stringValue":value.to_string()}}},"currentDocument":{"exists":false}}]})))
+            .respond_with(ResponseTemplate::new(200)).expect(1).up_to_n_times(1).mount(&server).await;
+        Mock::given(method("POST"))
+            .and(path("/documents:commit"))
+            .respond_with(ResponseTemplate::new(409))
+            .with_priority(10)
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/documents/cycle_snapshots_v1/test"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"fields":{"payload":{"stringValue":value.to_string()}}})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let archive = Archive {
+            http: reqwest::Client::new(),
+            documents: format!("{}/documents", server.uri()),
+            auth: Mutex::new(Some(Auth {
+                token: "local-test".into(),
+                until: Instant::now() + Duration::from_secs(60),
+            })),
+            cache: Mutex::new(HashMap::new()),
+            collection_lock: Mutex::new(()),
+            detail_cache: Mutex::new(HashMap::new()),
+            study_cache: Mutex::new(None),
+        };
+        assert!(
+            archive
+                .create_checkpoint("cycle_snapshots_v1/test", &value)
+                .await
+                .unwrap()
+        );
+        assert!(
+            !archive
+                .create_checkpoint(
+                    "cycle_snapshots_v1/test",
+                    &json!({"different":"second attempt"})
+                )
+                .await
+                .unwrap()
+        );
     }
 
     fn archived_payload() -> Value {

@@ -2,6 +2,12 @@
 
 Updated: 10 November 2026, America/New_York.
 
+## Ticket B — opening and execution-candidate capture
+
+Implemented private `POST /collect-cycle`, prospective opening and +45s execution-candidate records for BTC/ETH/SOL, and `scripts/deploy-cycle-schedule.zsh`. The owner authorized recurring capture and GCP save verification. The new collection is `cycle_snapshots_v1` in the existing named database, with immutable first-attempt IDs per asset/opening/phase. Each record has actual per-component request/receipt times, intended time, target/comparator/book and explicit error/late states. Existing minute-10 capture remains compatible. No decision exists yet, so follow-ups carry null decision fields and must be linked by the future runner before use in paper simulation.
+
+Required checks passed with cargo fmt, locked workspace clippy with warnings denied, locked workspace tests (68 Rust tests), frontend tests (58) and Python tests (21). New regression checks exercise timestamp ordering, wrong-window retry/rejection, phase timing gates and conditional-create duplicate preservation. See `docs/cycle-checkpoints.md` for storage, timing limits, costs and pause instructions. Build/deployment and actual save verification are in progress. Next step is to observe an automatic six-record capture and record its evidence here.
+
 ## Ticket A — minute-10 audit and blinded packets
 
 Implemented `scripts/audit_minute_ten.py` and synthetic regression fixtures on `codex/minute-ten-audit`. A read-only GCP audit of November 9–10 UTC, frozen at 2026-11-10T16:21:41.769384Z, found 161 completed windows with archived official results per asset. BTC, ETH and SOL each have 33 usable two-sided books matched to their official result, zero unmatched tickers, and zero missing captures from the first saved opening at November 10 08:00 UTC onward. The 128 earlier missing snapshots per asset remain missing. Every book arrived after the exact minute-10 cutoff, so exact-cutoff model packets all hide observations. Median receipt delay is roughly 18–19s and p95 roughly 29s.
