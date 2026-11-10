@@ -123,6 +123,7 @@ pub async fn capture_cycle(client: &Client, asset: Asset, open: i64, phase: Phas
                 break;
             }
             times["metadata_request_started_at"] = json!(Utc::now());
+            times["metadata_received_at"] = Value::Null;
             let response = client.open_markets(asset.info().series).await;
             times["metadata_received_at"] = json!(Utc::now());
             let succeeded = response.is_ok();
@@ -275,6 +276,46 @@ mod cycle_tests {
         assert_eq!(value["error"], "market_unavailable");
         assert!(value["observation"].is_null());
         assert!(value["component_times"]["book_request_started_at"].is_null());
+    }
+
+    #[tokio::test]
+    async fn timed_out_retry_has_no_receipt_from_an_earlier_attempt() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/markets"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"markets":[]})))
+            .up_to_n_times(1)
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/markets"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(std::time::Duration::from_secs(10))
+                    .set_body_json(json!({"markets":[]})),
+            )
+            .with_priority(10)
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = Client::with_base_url(&server.uri()).unwrap();
+        let value = capture_cycle(
+            &client,
+            Asset::Btc,
+            Utc::now().timestamp() - 5,
+            Phase::Opening,
+        )
+        .await;
+        assert_eq!(value["error"], "source_timeout");
+        assert!(value["component_times"]["metadata_received_at"].is_null());
+        assert_eq!(
+            value["component_times"]["metadata_attempts"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
     }
 
     #[tokio::test]
