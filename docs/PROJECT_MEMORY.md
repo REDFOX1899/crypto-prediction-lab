@@ -21,6 +21,10 @@ Crypto Prediction Lab is a public, read-only research dashboard for people follo
 
 **CoinMarketCap context**, below the homepage market watch: aggregate prices; 1h/24h/7d changes; market caps; rolling 24-hour volumes; global metrics; BTC dominance; dated Fear & Greed; sampled-price SVG history. This is a separate source, not the contract's CF settlement index. Historical samples begin with collection; no earlier ticks are fabricated.
 
+## Quote study in the local redesign
+
+Branch `codex/quote-outcome-desk` redesigns Home around a retrospective comparison of YES asks with official outcomes by asset, cutoff and price band. The underlying three-day study is stored in the existing named database, collection `quote_studies_v1`. An operator batch writes immutable normalized asset-day partitions plus a compact, conditional latest manifest. Labels are stored separately from pre-cutoff quote fields. Only the aggregate is served by the new read-only dashboard route. This release has no recurring study job. The public Cloud Run revision still serves the earlier Home. [Metric definitions and operator workflow](quote-study.md)
+
 ## Data Lab release
 
 Branch `codex/data-lab` adds a fourth Data Lab workspace, aligned outcomes and coverage, shared CMC comparisons, source/sample inspection and observation export. New read-only routes normalize archived minute quotes and project up to 24 hours of existing CMC history. The owner authorized publication, and this release is now on GitHub main and deployed. Public responses use fast gzip before outbound-byte accounting to prevent large page assets being crowded out by polling; existing bandwidth/resource limits remain. Real archived minute quotes and the bounded CMC history route passed public checks. The current handoff has verification details.

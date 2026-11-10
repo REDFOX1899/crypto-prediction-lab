@@ -2,7 +2,19 @@
 
 Updated: 10 November 2026, America/New_York.
 
-## Current checkout and deployed release
+## Current work — quote study and Home redesign
+
+The active branch is `codex/quote-outcome-desk`, based on `db41ac3` in the attached project checkout. The new UI and API are local. The study data was written to the existing named Firestore database in `gitunderstand`. The previous production release is recorded below.
+
+- Home opens with an interactive settlement-rate and gross break-even chart. It covers three assets, three cutoffs and five quote bands. Each selection has exact counts, mean ask, percentage-point gap, UTC dates and coverage. The live watch adds a two-sided YES spread and retains its clock, reference chart and source freshness. The shared workspace navigation fits the header.
+- November 7–9 UTC yielded 864 official binary outcomes. Minutes 5 and 10 each had 864 eligible quotes. Minute 14 had 221 BTC, 205 ETH and 217 SOL quotes. The fixed-minute candle is retrospective and quote size and fees were unavailable.
+- Cloud verification used `python3 scripts/build_quote_study.py --end-day 2026-11-09 --publish --preview data/quote-study.json`. A transient HTTP 429 on the first publication left no manifest. With bounded backoff the atomic commit succeeded. Nine immutable partitions and one manifest were read back and compared with their expected contents. A later run against the same source data completed with **zero writes**. Anonymous Firestore GET returned 403. No IAM grants, subscriptions, scheduler changes or service deployment were needed.
+- Run the local preview with `python3 scripts/preview-data-lab.py --port 3013`. It combines local UI and the verified aggregate with public read-only market feeds. The same aggregate is available in the native Rust server on loopback. Source captures and preview data are ignored by Git.
+- Verification passed with `cargo fmt --check`, `cargo clippy --locked --workspace --all-targets -- -D warnings`, `cargo test --locked --workspace` (57 tests), `node --test apps/dashboard/tests/*.test.cjs` (56 tests), `python3 -m unittest discover -s scripts/tests -v` (13 tests), and `git diff --check`. The native public server returned the verified board, rejected POST/PATCH/PUT/DELETE and exposed no collection writes. The private collector returned 404 for the study route. Mock Firestore verification covered fixed-path reads, public field projection and cache reuse.
+- Browser checks covered all 45 data selections, mobile/tablet/desktop widths of 320/390/768/1440 pixels, dark/light themes, workspace switching and the visible Single market book. Screenshots are under `/private/tmp/quote-study-*`.
+- Review the local first screen before releasing the dashboard. The study is a manual three-day snapshot. Test the same preselected bands on later, untouched days and obtain prospective quotes, size and fees before evaluating executable returns. [Definitions and reproducible batch](quote-study.md)
+
+## Previous deployed release
 
 - Repository: `/Users/shantanu/Documents/ChatGPT/Crypto Prediction Lab`; https://github.com/REDFOX1899/crypto-prediction-lab. Do not switch to the older Desktop checkout.
 - Branch `codex/blockworks-pilot`. Application commit **`a0da6c2`** is deployed and published to GitHub main, together with the deployment documentation. The owner explicitly approved the GitHub main push on 10 November 2026 after the earlier automatic approval rejection. GitHub main was verified as `f2e95bd` before publication; the push is a normal fast-forward, with no force or history rewrite.

@@ -78,3 +78,12 @@ test('leaving Home aborts pending metadata and history requests; old replies can
  root.HomePage.enter();assert.equal(signals.length,6);root.HomePage.leave();assert.ok(signals.every(s=>s.aborted));
  pending.forEach(resolve=>resolve());await new Promise(setImmediate);assert.equal(nodes.get('home-target-BTC').textContent,'—');
 });
+test('spread uses matching quote sides and keeps locked books distinct from missing or crossed quotes',()=>{
+ const update = {...live,book:null,yes_bid:'0.451',yes_ask:'0.467'};
+ assert.equal(cardState(market,snapshot,update,now,now).spread,0.016);
+ assert.equal(cardState(market,snapshot,{...update,yes_ask:'0.450'},now,now).spread,null);
+ assert.equal(cardState(market,snapshot,{...update,yes_ask:null},now,now).spread,null);
+ const locked={...live,book:{yes_dollars:[['0.10','1']],no_dollars:[['0.90','1']]}};
+ assert.equal(cardState(market,snapshot,locked,now,now).spread,0);
+ assert.equal(cardState({...market,yes_bid_dollars:'0.45'},snapshot,null,null,now).spread,0.05);
+});

@@ -54,6 +54,7 @@ pub struct Archive {
     auth: Mutex<Option<Auth>>,
     cache: Mutex<HashMap<Asset, (Instant, Board)>>,
     collection_lock: Mutex<()>,
+    study_cache: Mutex<Option<(Instant, Option<crate::quote_study::Board>)>>,
     detail_cache: Mutex<HashMap<String, (Instant, Value)>>,
 }
 impl Archive {
@@ -81,6 +82,7 @@ impl Archive {
             auth: Mutex::new(None),
             cache: Mutex::new(HashMap::new()),
             collection_lock: Mutex::new(()),
+            study_cache: Mutex::new(None),
             detail_cache: Mutex::new(HashMap::new()),
         })))
     }
@@ -105,9 +107,39 @@ impl Archive {
         if id.len() > 80 || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
             return Err("Invalid research document ID".into());
         }
+        self.saved_payload(&format!("blockworks_pilots/{id}"), 900_000)
+            .await
+    }
+
+    pub(crate) async fn quote_study(&self) -> Result<Option<crate::quote_study::Board>, Failure> {
+        let mut cache = self.study_cache.lock().await;
+        if let Some((at, board)) = &*cache
+            && at.elapsed() < Duration::from_secs(600)
+        {
+            return Ok(board.clone());
+        }
+        let board = match self
+            .saved_payload("quote_studies_v1/latest", 32_768)
+            .await?
+        {
+            None => None,
+            Some(mut manifest) => {
+                let board: crate::quote_study::Board =
+                    serde_json::from_value(manifest["board"].take())?;
+                if !board.valid() {
+                    return Err("Invalid saved study".into());
+                }
+                Some(board)
+            }
+        };
+        *cache = Some((Instant::now(), board.clone()));
+        Ok(board)
+    }
+
+    async fn saved_payload(&self, path: &str, byte_limit: usize) -> Result<Option<Value>, Failure> {
         let mut response = self
             .http
-            .get(format!("{}/blockworks_pilots/{id}", self.documents))
+            .get(format!("{}/{path}", self.documents))
             .bearer_auth(self.token().await?)
             .send()
             .await?;
@@ -117,7 +149,7 @@ impl Archive {
         response.error_for_status_ref()?;
         let mut bytes = Vec::new();
         while let Some(chunk) = response.chunk().await? {
-            if bytes.len() + chunk.len() > 900_000 {
+            if bytes.len() + chunk.len() > byte_limit {
                 return Err("Research document exceeds limit".into());
             }
             bytes.extend_from_slice(&chunk);
@@ -499,6 +531,46 @@ async fn kalshi_json(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn study_only_reads_the_fixed_manifest_and_reuses_the_public_projection() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        let mut board = crate::quote_study::tests::example();
+        board["internal"] = json!("excluded");
+        let manifest = json!({"partitions":{"opaque":"private rows"},"board":board});
+        Mock::given(method("GET"))
+            .and(path("/quote_studies_v1/latest"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(
+                    json!({"fields":{"payload":{"stringValue":manifest.to_string()}}}),
+                ),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let archive = Archive {
+            http: reqwest::Client::new(),
+            documents: server.uri(),
+            auth: Mutex::new(Some(Auth {
+                token: "local-test".into(),
+                until: Instant::now() + Duration::from_secs(60),
+            })),
+            cache: Mutex::new(HashMap::new()),
+            collection_lock: Mutex::new(()),
+            detail_cache: Mutex::new(HashMap::new()),
+            study_cache: Mutex::new(None),
+        };
+        for _ in 0..2 {
+            let public =
+                serde_json::to_value(archive.quote_study().await.unwrap().unwrap()).unwrap();
+            assert_eq!(public, crate::quote_study::tests::example());
+        }
+    }
+
     fn archived_payload() -> Value {
         json!({"market":{"ticker":"KXBTC15M-TEST","result":"yes","open_time":"2026-11-09T20:00:00Z","close_time":"2026-11-09T20:15:00Z"},
         "candlesticks":{"ticker":"KXBTC15M-TEST","candlesticks":[

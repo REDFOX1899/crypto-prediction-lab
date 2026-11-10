@@ -16,6 +16,12 @@ function depthShare(book){
 }
 function price(value){if(value==null||value==='')return null;const n=Number(value);return Number.isFinite(n)&&n>=0&&n<=1?n:null}
 function topBook(book){const side=levels=>(levels||[]).filter(([p,q])=>price(p)!==null&&Number.isFinite(Number(q))&&Number(q)>0).slice().sort((a,b)=>Number(b[0])-Number(a[0])).slice(0,10);return {yes_dollars:side(book?.yes_dollars),no_dollars:side(book?.no_dollars)}}
+function spread(bidValue,askValue){
+ const bid=price(bidValue),ask=price(askValue);
+ if(bid===null||ask===null||bid<=0||ask>=1)return null;
+ const millionths=Math.round(ask*1000000)-Math.round(bid*1000000);
+ return millionths>=0?millionths/1000000:null;
+}
 function cardState(m,snapshot,live,received,now){
  const age=t=>{const ms=Date.parse(t);return Number.isFinite(ms)&&ms<=now+2000?Math.max(0,now-ms):Infinity};
  const marketValid=m?.status==='active'&&Date.parse(m.close_time)-Date.parse(m.open_time)===period&&now>=Date.parse(m.open_time)&&now<Date.parse(m.close_time);
@@ -25,11 +31,11 @@ function cardState(m,snapshot,live,received,now){
  const matched=live?.ticker===m.ticker&&['live','subscribed'].includes(live.state)&&Number.isFinite(received)&&now-received<=8000;
  if(matched&&live.book&&age(live.book_received_at)<=15000){
   const book=topBook(live.book),yesBid=price(book.yes_dollars[0]?.[0]),noBid=price(book.no_dollars[0]?.[0]);
-  return {mode:'live',yes:noBid===null?null:1-noBid,no:yesBid===null?null:1-yesBid,depth:depthShare(book),depthLive:true,age:age(live.book_received_at)};
+  return {mode:'live',yes:noBid===null?null:1-noBid,no:yesBid===null?null:1-yesBid,depth:depthShare(book),depthLive:true,spread:spread(yesBid,noBid===null?null:1-noBid),age:age(live.book_received_at)};
  }
  const depth=age(snapshot?.fetched_at)<=45000?depthShare(topBook(snapshot?.order_book)):null;
- if(matched&&live.state==='live'&&age(live.received_at)<=15000)return {mode:'live',yes:price(live.yes_ask),no:price(live.yes_bid)===null?null:1-Number(live.yes_bid),depth,depthLive:false,age:age(live.received_at)};
- return {mode:'snapshot',yes:price(m.yes_ask_dollars),no:price(m.no_ask_dollars),depth,depthLive:false,age:age(snapshot?.fetched_at)};
+ if(matched&&live.state==='live'&&age(live.received_at)<=15000)return {mode:'live',yes:price(live.yes_ask),no:price(live.yes_bid)===null?null:1-Number(live.yes_bid),depth,depthLive:false,spread:spread(live.yes_bid,live.yes_ask),age:age(live.received_at)};
+ return {mode:'snapshot',yes:price(m.yes_ask_dollars),no:price(m.no_ask_dollars),depth,depthLive:false,spread:spread(m.yes_bid_dollars,m.yes_ask_dollars),age:age(snapshot?.fetched_at)};
 }
 if(typeof module==='object'&&module.exports){module.exports={windowClose,recentOutcomes,depthShare,cardState};return}
 const $=id=>document.getElementById(id),symbols=['BTC','ETH','SOL'];let active=false,generation=0,timer,historyTimer,clockTimer,markets={},snapshots={},archived={},errors={},live={},received={},feeds=[],snapshotFlight=null,historyFlight=null,refs={},refReceived={},trails={},anchor=null;
@@ -65,6 +71,7 @@ function quote(id,value){const node=$(id),next=cents(value),previous=node.datase
 function render(a,now){
  referenceRender(a,now);
  const m=markets[a],state=cardState(m,snapshots[a],live[a],received[a],now),closed=m&&now>=Date.parse(m.close_time);
+ text(`home-spread-${a}`,cents(state.spread));
  quote(`home-yes-${a}`,state.yes);quote(`home-no-${a}`,state.no);
  const badge=$(`home-live-${a}`);badge.dataset.state=document.hidden?'background':state.mode;
  text(`home-live-${a}`,document.hidden?'BACKGROUND':state.mode==='live'?'LIVE':state.mode==='snapshot'?'SNAPSHOT':state.mode==='stale'?'STALE':'CONNECTING');
@@ -128,7 +135,7 @@ function connect(g){for(const a of symbols){
  reference.onerror=()=>{if(!active||g!==generation)return;delete refs[a];referenceRender(a,nowMs())};
 }}
 
-function leave(){root.MarketContext?.leave();active=false;generation++;clearTimeout(timer);clearTimeout(historyTimer);clearInterval(clockTimer);feeds.forEach(f=>f.close());feeds=[];snapshotFlight?.controller.abort();historyFlight?.controller.abort();snapshotFlight=null;historyFlight=null}
-root.HomePage={enter(){leave();active=true;markets={};snapshots={};archived={};errors={};live={};received={};refs={};refReceived={};trails={};anchor=null;for(const a of symbols){text(`home-target-${a}`,'—');delete $(`home-yes-${a}`).dataset.price;delete $(`home-no-${a}`).dataset.price;text(`home-window-${a}`,'Finding the current market…')}const g=generation;root.MarketContext?.enter();clock();history();connect(g);refresh(g);loadHistory(g);clockTimer=setInterval(clock,1000)},leave};
+function leave(){root.QuoteStudy?.leave();root.MarketContext?.leave();active=false;generation++;clearTimeout(timer);clearTimeout(historyTimer);clearInterval(clockTimer);feeds.forEach(f=>f.close());feeds=[];snapshotFlight?.controller.abort();historyFlight?.controller.abort();snapshotFlight=null;historyFlight=null}
+root.HomePage={enter(){leave();active=true;markets={};snapshots={};archived={};errors={};live={};received={};refs={};refReceived={};trails={};anchor=null;for(const a of symbols){text(`home-target-${a}`,'—');delete $(`home-yes-${a}`).dataset.price;delete $(`home-no-${a}`).dataset.price;text(`home-window-${a}`,'Finding the current market…')}const g=generation;root.QuoteStudy?.enter();root.MarketContext?.enter();clock();history();connect(g);refresh(g);loadHistory(g);clockTimer=setInterval(clock,1000)},leave};
 document.addEventListener('visibilitychange',()=>{if(active&&!document.hidden){refresh(generation);if(!historyFlight){clearTimeout(historyTimer);loadHistory(generation)}}});
 })(typeof window!=='undefined'?window:globalThis);

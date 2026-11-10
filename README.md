@@ -14,6 +14,10 @@ CoinMarketCap adds a separately labeled market-context section with shared sched
 
 Direct CF Benchmarks and Coinbase integrations and durable high-frequency event capture are proposed in the data-engineering plan; they are not yet implemented.
 
+## Quote and outcome study
+
+The redesigned Home in this checkout compares archived YES asks with official results at minutes 5, 10 and 14. Choose an asset and price band to see the observed settlement rate, the break-even rate before fees and the eligible sample count. The first study covers November 7–9 UTC and is saved in the app's named Firestore database. The redesign is available locally. [Chart definitions, storage and refresh commands](docs/quote-study.md)
+
 ## Data Lab
 
 The new `/?view=data` workspace compares aligned BTC/ETH/SOL official outcomes, records coverage, and charts shared CMC returns and correlations with sample counts. Select an outcome cell to inspect the contract summaries, then choose an asset for its stored one-minute YES-ask OHLC. Exact values and missing minutes remain visible. Export observations as JSON for inspection; the export is not a point-in-time training dataset.
@@ -26,7 +30,7 @@ For a visual preview using the currently deployed public outcomes and short CMC 
 python3 scripts/preview-data-lab.py
 ```
 
-Open http://127.0.0.1:3002/?view=data. This loopback helper serves local assets and reads existing public data; it cannot read private minute-candle payloads or demonstrate the full new 24-hour query. Use the configured Rust application to verify those cloud reads end to end before deployment.
+Open http://127.0.0.1:3002/?view=data. This loopback helper serves local assets, the local quote study when present and read-only responses from the deployed dashboard, including the existing archive and cutoff inspectors.
 
 Data Lab also includes a saved Blockworks BTC/ETH/SOL price-and-volume pilot and a “Before this outcome” inspector. Select an outcome cell to inspect completed intervals before a chosen cutoff, with retrospective downloads labeled separately from saved collection timestamps. CF reference and order-book history are marked unavailable when not archived. The one-time seven-day pilot is bounded; public refreshes cannot invoke provider collection, and exports exclude Blockworks. See [timing, deployment and data provenance](docs/before-outcome.md) and [pilot commands and credits](docs/blockworks-data-plan.md).
 

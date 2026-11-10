@@ -7,6 +7,7 @@ mod final_minute;
 mod history;
 mod order_book;
 mod outcomes;
+mod quote_study;
 mod reference;
 mod research;
 mod stream;
@@ -71,6 +72,7 @@ struct AppState {
     polling: bool,
     context: Arc<context::Context>,
     blockworks: Arc<blockworks::Service>,
+    preview_study: Option<Arc<quote_study::Board>>,
 }
 async fn blockworks_board(State(state): State<AppState>) -> impl IntoResponse {
     (
@@ -78,6 +80,42 @@ async fn blockworks_board(State(state): State<AppState>) -> impl IntoResponse {
         Json(state.blockworks.board().await),
     )
 }
+async fn quote_study(State(state): State<AppState>) -> Response {
+    let Some(archive) = state.archive else {
+        if let Some(board) = state.preview_study {
+            return Json(board.as_ref()).into_response();
+        }
+        return Json(serde_json::json!({"status": "not_configured"})).into_response();
+    };
+    match tokio::time::timeout(std::time::Duration::from_secs(8), archive.quote_study()).await {
+        Ok(Ok(Some(board))) => (
+            [(header::CACHE_CONTROL, "public, max-age=300")],
+            Json(board),
+        )
+            .into_response(),
+        Ok(Ok(None)) => Json(serde_json::json!({"status": "unavailable"})).into_response(),
+        _ => (
+            StatusCode::BAD_GATEWAY,
+            "Quote study temporarily unavailable",
+        )
+            .into_response(),
+    }
+}
+
+async fn study_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/quote-study.js"),
+    )
+}
+
+async fn study_style() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/css; charset=utf-8")],
+        include_str!("../public/quote-study.css"),
+    )
+}
+
 async fn combo_quote(
     State(state): State<AppState>,
     Query(selection): Query<combos::Selection>,
@@ -563,7 +601,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     let combo_service = Arc::new(combos::Service::new(client.clone())?);
     let polling = std::env::var("DASHBOARD_DELIVERY").as_deref() == Ok("poll");
+    let preview_study = if archive.is_none() {
+        quote_study::Board::local_preview(address, std::path::Path::new("data/quote-study.json"))
+            .map(Arc::new)
+    } else {
+        None
+    };
     let state = AppState {
+        preview_study,
         workspaces: Arc::new(workspaces),
         archive,
         combos: combo_service,
@@ -587,6 +632,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/context", get(context_board))
         .route("/api/context/history", get(research_context))
         .route("/api/blockworks", get(blockworks_board))
+        .route("/api/research/quote-study", get(quote_study))
+        .route("/assets/quote-study.js", get(study_script))
+        .route("/assets/quote-study.css", get(study_style))
         .route("/api/research/before", get(before_outcome))
         .route("/assets/data-lab.js", get(data_lab_script))
         .route("/assets/data-lab.css", get(data_lab_style))

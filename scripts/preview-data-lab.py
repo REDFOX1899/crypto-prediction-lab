@@ -17,7 +17,8 @@ import time
 PUBLIC = Path(__file__).resolve().parents[1] / "apps/dashboard/public"
 UPSTREAM = "https://crypto-prediction-lab-308289525742.us-central1.run.app"
 READ_PATHS = {"/api/assets", "/api/outcomes", "/api/context", "/api/context/history", "/api/feeds",
-              "/api/snapshot", "/api/history/reference", "/api/history/market", "/api/combos/quote"}
+              "/api/snapshot", "/api/history/reference", "/api/history/market", "/api/combos/quote",
+              "/api/archive/window", "/api/blockworks", "/api/research/before"}
 CACHE = {}
 LOCK = threading.Lock()
 
@@ -39,11 +40,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlsplit(self.path)
-        if parsed.path == "/api/blockworks":
-            self.reply(200, b'{"status":"not_configured","series":[]}')
-            return
-        if parsed.path == "/api/archive/window":
-            self.reply(200, b'{"status":"not_configured","candles":[]}')
+        if parsed.path == "/api/research/quote-study":
+            study = self.server.quote_study
+            self.reply(200, study or b'{"status":"not_configured"}')
             return
         if parsed.path in READ_PATHS:
             if parsed.path == "/api/outcomes" and parse_qs(parsed.query).get("asset") not in (["BTC"], ["ETH"], ["SOL"]):
@@ -51,13 +50,12 @@ class Handler(BaseHTTPRequestHandler):
                 return
             with LOCK:
                 saved = CACHE.get(self.path)
-            if saved and time.monotonic() - saved[0] < 60:
+            ttl = 1 if parsed.path == "/api/feeds" else 8 if parsed.path == "/api/snapshot" else 60
+            if saved and time.monotonic() - saved[0] < ttl:
                 self.reply(200, saved[1])
                 return
             try:
-                # Production has not been redeployed: preview its existing short history.
-                upstream_path = "/api/context" if parsed.path == "/api/context/history" else self.path
-                with urlopen(UPSTREAM + upstream_path, timeout=10) as response:
+                with urlopen(UPSTREAM + self.path, timeout=10) as response:
                     body = response.read(1_048_577)
                     if len(body) > 1_048_576:
                         raise ValueError()
@@ -86,7 +84,17 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", type=int, default=3002)
+    parser.add_argument("--study", type=Path, default=PUBLIC.parents[2] / "data/quote-study.json",
+                        help="Local aggregate produced by build_quote_study.py")
     args = parser.parse_args()
-    print(f"Local preview: http://127.0.0.1:{args.port}/?view=data", flush=True)
-    print("Uses deployed public short-history responses; the new 24h query and private archived minute quotes need the configured Rust backend.", flush=True)
-    ThreadingHTTPServer(("127.0.0.1", args.port), Handler).serve_forever()
+    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    server.quote_study = None
+    if args.study.is_file():
+        if args.study.stat().st_size > 32768:
+            parser.error("Study exceeds the aggregate size limit")
+        board = json.loads(args.study.read_bytes())
+        if set(board) != {"schema_version", "series", "start_day", "end_day"}:
+            parser.error("Expected a public chart aggregate")
+        server.quote_study = json.dumps(board).encode()
+    print(f"Local dashboard: http://127.0.0.1:{args.port}/", flush=True)
+    server.serve_forever()
