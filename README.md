@@ -1,6 +1,14 @@
 # Crypto Prediction Lab
 
-A learning-oriented, read-only Rust client for discovering Kalshi crypto prediction markets. This first milestone queries public market data; it cannot place orders and is not investment advice or a profitability claim. Not affiliated with Kalshi.
+A read-only Rust dashboard and client for BTC, ETH and SOL 15-minute Kalshi markets. Research live reference prices, contract quotes, liquidity and settled outcomes. It cannot place orders and makes no profitability claim. Not affiliated with Kalshi.
+
+Public dashboard: https://crypto-prediction-lab-308289525742.us-central1.run.app/
+
+The application includes a live homepage, a shared single-market workspace and a combo research view. Features include light/dark themes, observed-price SVG plots, interactive charts, an always-visible order book, final-minute coverage and a Firestore settlement archive. Private combo RFQs and trading remain disabled.
+
+[UI and data semantics](docs/focus-ui-design.md) · [History archive](docs/history-archive.md) · [Cost controls](docs/cost-controls.md) · [Data-engineering plan](docs/data-provider-engineering-plan.md)
+
+Direct CF Benchmarks and Coinbase integrations and durable high-frequency event capture are proposed in the data-engineering plan; they are not yet implemented.
 
 ## Run
 
@@ -18,6 +26,7 @@ Pass another verified crypto series ticker to inspect it. The CLI checks the ser
 cargo fmt --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked --workspace
+node --test apps/dashboard/tests/*.test.cjs
 ```
 
 [Architecture](docs/architecture.md) | [Roadmap](docs/roadmap.md)
@@ -32,7 +41,7 @@ This project does not use real-money trading credentials or submit trades. Never
 cargo run -p dashboard
 ```
 
-Open http://127.0.0.1:3000. The server listens only on your Mac and uses the same Rust client as the CLI. Without a key, it polls public BTC market and order-book snapshots every 10 seconds. An optional read-only key enables streaming. The chart begins collecting YES ask snapshots only while the page is open, resets when the market rolls over, and does not fill in missing history. Quotes and order-book levels come from separate requests and are not an atomic snapshot. An unavailable order book is reported separately. This is not an execution system.
+Open http://127.0.0.1:3000. The server listens only on your Mac and uses the same Rust client as the CLI. Without a key, the detailed workspace uses public market and order-book snapshots for the selected BTC, ETH or SOL contract. An optional read-only key enables streaming. The chart begins collecting YES ask snapshots only while the page is open, resets when the market rolls over, and does not fill in missing history. Quotes and order-book levels come from separate requests and are not an atomic snapshot. An unavailable order book is reported separately. This is not an execution system.
 
 Kalshi's order book reports YES and NO bids; it does not directly list asks. Quotes are indicative and do not guarantee fills. A registered account and API key are needed for Kalshi's authenticated WebSocket connection. Before publicly hosting market data, verify Kalshi and benchmark-provider redistribution terms, operating costs, and rate limits.
 
@@ -47,7 +56,7 @@ export KALSHI_PRIVATE_KEY_PATH="$HOME/.config/crypto-prediction-lab/kalshi-priva
 cargo run -p dashboard
 ```
 
-The example path must point to your own key file. The server signs the WebSocket handshake locally; the key never enters the browser. Production credentials are required for the production endpoint. When configured, a single shared stream provides BTC ticker quotes to local pages. The order book streams a full snapshot followed by ordered changes; a gap triggers reconnect and a fresh snapshot. The app falls back to a labeled public REST snapshot when streaming is unavailable. The app reconnects and rechecks market rollover; if disconnected, it falls back to public snapshots. The chart represents observed asks, not a complete history. Missing stream events cannot be recovered from the ticker stream. Never expose this local server or its credentials to the public without a separate deployment and security review.
+The example path must point to your own key file. The server signs the WebSocket handshake locally; the key never enters the browser. Production credentials are required for the production endpoint. When configured, per-asset streams shared by visitors provide ticker and order-book updates for BTC, ETH and SOL. The order book streams a full snapshot followed by ordered changes; a gap triggers reconnect and a fresh snapshot. The app falls back to a labeled public REST snapshot when streaming is unavailable. The app reconnects and rechecks market rollover; if disconnected, it falls back to public snapshots. The chart represents observed asks, not a complete history. Missing stream events cannot be recovered from the ticker stream. Never expose this local server or its credentials to the public without a separate deployment and security review.
 
 ### Reading the charts and depth
 
@@ -63,10 +72,16 @@ The bundled chart library is Apache-2.0 licensed; its license and notice are in 
 
 ### Historical data details
 
-BRTI history comes from Kalshi’s authenticated CF Benchmarks passthrough (`/cfbenchmarks/history/values`), requesting two completed UTC-hour windows and aggregating returned index ticks into one-minute OHLC bars. Data can be delayed or unavailable, and this endpoint may require account entitlement. The server bounds response size and caches results for five minutes. It never sends key material to the browser. The YES chart uses Kalshi’s public 1-minute YES-ask candlesticks for the current market only, followed by locally observed live quote values. Past candles end at their stated time; the chart places them at the minute start. Null, invalid and unfinished provider candles are omitted. The current live candle may be incomplete. Older settled markets and complete backtesting remain out of scope. Verify data rights before storage or public redistribution.
+BRTI history comes from Kalshi’s authenticated CF Benchmarks passthrough (`/cfbenchmarks/history/values`), requesting two completed UTC-hour windows and aggregating returned index ticks into one-minute OHLC bars. Data can be delayed or unavailable, and this endpoint may require account entitlement. The server bounds response size and caches results for five minutes. It never sends key material to the browser. The YES chart uses Kalshi’s public 1-minute YES-ask candlesticks for the current market only, followed by locally observed live quote values. Past candles end at their stated time; the chart places them at the minute start. Null, invalid and unfinished provider candles are omitted. The current live candle may be incomplete. Settled contracts and available minute candles are archived separately; complete tick-level replay and backtesting remain future work. Verify data rights before storage or public redistribution.
 
 ### Shared asset workspace
 
 The selector enables BTC, ETH and SOL 15-minute markets. One registry supplies the supported symbols, market series and reference indices. Select an asset to change the shared chart, live quotes, order book and history. The selected symbol is kept in the page URL, for example `/?asset=ETH`. Unsupported API assets are rejected. History and live reference access can differ by asset and account entitlement. Per-asset workers and caches are shared by dashboard tabs. Browser requests from an older selection are ignored after switching.
 
 For a second local preview server: `DASHBOARD_PORT=3001 cargo run -p dashboard`.
+
+## Public hosting
+
+The deployed public pilot uses shared two-second browser polling; local mode supports SSE. Reference and market connections remain server-side. A separate private scheduled collector writes settled-contract history. Deployment scripts refer to dedicated Secret Manager resources and contain no private key material. See [deployment](docs/public-deployment.md), [production pilot](docs/production-pilot.md) and [combo semantics](docs/combo-lab.md).
+
+The current live feed buffers are bounded in memory. The archive is not a complete tick/order-book capture, and the observed final-minute average is not an official settlement result. Existing hosting limits and budget alerts reduce cost without guaranteeing an absolute monthly bill cap.

@@ -49,7 +49,12 @@ fn parse_reference(value: serde_json::Value, index: &str) -> Result<Value, ()> {
     Ok(data)
 }
 
-pub fn start(credentials: Option<Credentials>, tx: watch::Sender<ReferenceUpdate>, asset: Asset) {
+pub fn start(
+    credentials: Option<Credentials>,
+    tx: watch::Sender<ReferenceUpdate>,
+    asset: Asset,
+    recorder: crate::final_minute::Shared,
+) {
     let Some(credentials) = credentials else {
         tx.send_replace(ReferenceUpdate::status("disabled"));
         return;
@@ -57,7 +62,7 @@ pub fn start(credentials: Option<Credentials>, tx: watch::Sender<ReferenceUpdate
     tokio::spawn(async move {
         loop {
             tx.send_replace(ReferenceUpdate::status("connecting"));
-            if connect(&credentials, &tx, URL, asset.info().index)
+            if connect(&credentials, &tx, URL, asset.info().index, &recorder)
                 .await
                 .is_err()
             {
@@ -73,6 +78,7 @@ async fn connect(
     tx: &watch::Sender<ReferenceUpdate>,
     url: &str,
     index: &str,
+    recorder: &crate::final_minute::Shared,
 ) -> Result<(), ()> {
     let ts = Utc::now().timestamp_millis().to_string();
     let mut request = url.into_client_request().map_err(|_| ())?;
@@ -112,10 +118,12 @@ async fn connect(
                             Some("error")=>return Err(()),
                             Some("cfbenchmarks_value")=>{
                                 let value=parse_reference(json.get("msg").cloned().ok_or(())?,index)?;
-                                if latest_source_time.is_none_or(|last|value.time>last) {
-                                    latest_source_time=Some(value.time);
-                                    // A newly received tick with an old source timestamp is not live.
-                                    if Utc::now().timestamp_millis().saturating_sub(value.time) <= 10_000 {
+                                let now=Utc::now().timestamp_millis();
+                                if crate::final_minute::valid_time(now,value.time) {
+                                    // Valid delayed seconds can improve coverage without rewinding the live price.
+                                    recorder.lock().unwrap_or_else(|e|e.into_inner()).observe(now,value.time,value.value);
+                                    if latest_source_time.is_none_or(|last|value.time>last) {
+                                        latest_source_time=Some(value.time);
                                         last_value=Some(time::Instant::now());
                                         tx.send_replace(ReferenceUpdate {state:"live",value:Some(value.value),source_time_ms:Some(value.time)});
                                     }
@@ -164,15 +172,27 @@ mod tests {
             assert_eq!(command["params"]["channels"][0], "cfbenchmarks_value");
             assert_eq!(command["params"]["index_ids"][0], "BRTI");
             let now = Utc::now().timestamp_millis();
+            // A future timestamp must not poison the monotonic marker.
+            let future =
+                serde_json::json!({"id":"BRTI","time":now+60_000,"value":"99999"}).to_string();
+            let future=serde_json::json!({"type":"cfbenchmarks_value","msg":{"index_id":"BRTI","data":future}}).to_string();
+            ws.send(Message::Text(future.into())).await.unwrap();
             let nested = serde_json::json!({"id":"BRTI","time":now,"value":"76000.12"}).to_string();
             let message=serde_json::json!({"type":"cfbenchmarks_value","msg":{"index_id":"BRTI","data":nested}}).to_string();
             ws.send(Message::Text(message.into())).await.unwrap();
+            let delayed =
+                serde_json::json!({"id":"BRTI","time":now-1000,"value":"76001.12"}).to_string();
+            let delayed=serde_json::json!({"type":"cfbenchmarks_value","msg":{"index_id":"BRTI","data":delayed}}).to_string();
+            ws.send(Message::Text(delayed.into())).await.unwrap();
             time::sleep(Duration::from_millis(100)).await;
         });
         let (tx, mut rx) = watch::channel(ReferenceUpdate::status("connecting"));
         let credentials = crate::stream::test_credentials();
         let url = format!("ws://{address}/trade-api/ws/v2");
-        let task = tokio::spawn(async move { connect(&credentials, &tx, &url, "BRTI").await });
+        let recorder = crate::final_minute::Recorder::shared();
+        let recorded = recorder.clone();
+        let task =
+            tokio::spawn(async move { connect(&credentials, &tx, &url, "BRTI", &recorder).await });
         time::timeout(Duration::from_secs(3), rx.changed())
             .await
             .unwrap()
@@ -181,5 +201,18 @@ mod tests {
         assert_eq!(rx.borrow().value.unwrap().to_string(), "76000.12");
         server.await.unwrap();
         let _ = task.await;
+        let now = Utc::now();
+        let close = chrono::DateTime::from_timestamp(now.timestamp() + 2, 0).unwrap();
+        let market: kalshi_client::Market = serde_json::from_value(serde_json::json!({
+            "ticker":"KXBTC15M-TEST-00","title":"BTC","status":"active",
+            "open_time":close-chrono::Duration::minutes(15),"close_time":close,
+            "floor_strike":"76000","strike_type":"greater_or_equal"
+        }))
+        .unwrap();
+        let mut recorder = recorded.lock().unwrap();
+        recorder.market(Asset::Btc, Some(&market), now.timestamp_millis());
+        let summary = recorder.summary(Asset::Btc, close.timestamp_millis(), "live");
+        assert_eq!(summary.observed_seconds, 2);
+        assert_eq!(summary.latest_value.unwrap().to_string(), "76000.12");
     }
 }

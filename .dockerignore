@@ -1,0 +1,12 @@
+*
+!Cargo.toml
+!Cargo.lock
+!apps/
+!apps/**
+!crates/
+!crates/**
+**/target
+**/.env*
+**/*.pem
+**/*.key
+**/.DS_Store

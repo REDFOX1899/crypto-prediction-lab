@@ -43,6 +43,8 @@ pub struct Market {
     pub no_bid_dollars: Option<Decimal>,
     pub no_ask_dollars: Option<Decimal>,
     pub yes_sub_title: Option<String>,
+    pub floor_strike: Option<Decimal>,
+    pub strike_type: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

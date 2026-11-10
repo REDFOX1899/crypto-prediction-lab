@@ -1,24 +1,28 @@
 mod assets;
+mod combos;
+mod final_minute;
 mod history;
 mod order_book;
+mod outcomes;
 mod reference;
 mod stream;
 
 use assets::{Asset, Selection};
 use axum::{
     Json, Router,
-    extract::{Query, State},
+    extract::{Query, Request, State},
     http::{StatusCode, header},
+    middleware::{self, Next},
     response::{
         Html, IntoResponse, Response,
         sse::{Event, KeepAlive, Sse},
     },
-    routing::get,
+    routing::{get, post},
 };
 use chrono::{DateTime, Utc};
 use kalshi_client::{Client, Market, OrderBook, current_market};
 use serde::Serialize;
-use std::{collections::HashMap, convert::Infallible, sync::Arc};
+use std::{collections::HashMap, convert::Infallible, net::IpAddr, sync::Arc};
 use tokio::sync::watch;
 use tokio_stream::{StreamExt, wrappers::WatchStream};
 
@@ -28,11 +32,170 @@ struct Workspace {
     stream_tx: watch::Sender<stream::Update>,
     reference_tx: watch::Sender<reference::ReferenceUpdate>,
     history: std::sync::Arc<history::HistoryService>,
+    final_minute: final_minute::Shared,
+}
+
+#[derive(Serialize)]
+struct ReferenceEnvelope {
+    #[serde(flatten)]
+    reference: reference::ReferenceUpdate,
+    final_minute: final_minute::Summary,
+}
+impl Workspace {
+    fn reference_envelope(
+        &self,
+        asset: Asset,
+        reference: reference::ReferenceUpdate,
+    ) -> ReferenceEnvelope {
+        let summary = self
+            .final_minute
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .summary(asset, Utc::now().timestamp_millis(), reference.state);
+        ReferenceEnvelope {
+            reference,
+            final_minute: summary,
+        }
+    }
 }
 
 #[derive(Clone)]
 struct AppState {
     workspaces: Arc<HashMap<Asset, Workspace>>,
+    archive: Option<Arc<outcomes::Archive>>,
+    combos: Arc<combos::Service>,
+    polling: bool,
+}
+async fn combo_quote(
+    State(state): State<AppState>,
+    Query(selection): Query<combos::Selection>,
+) -> Response {
+    if !selection.valid() {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Select two or three supported assets",
+        )
+            .into_response();
+    }
+    let quote = tokio::time::timeout(
+        std::time::Duration::from_secs(12),
+        state.combos.quote(&selection),
+    )
+    .await;
+    match quote {
+        Ok(quote) => ([(header::CACHE_CONTROL, "no-store")], Json(quote)).into_response(),
+        Err(_) => (
+            StatusCode::GATEWAY_TIMEOUT,
+            "Combo discovery timed out; retry shortly",
+        )
+            .into_response(),
+    }
+}
+async fn feed_script(State(state): State<AppState>) -> impl IntoResponse {
+    (
+        [
+            (header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
+            (header::CACHE_CONTROL, "no-cache"),
+        ],
+        format!(
+            "window.DASHBOARD_POLLING={};\n{}",
+            state.polling,
+            include_str!("../public/feed-client.js")
+        ),
+    )
+}
+async fn feeds(State(state): State<AppState>) -> impl IntoResponse {
+    // A short request allows upstream WebSocket tasks to run on request-billed CPU.
+    // No new upstream connections are opened for individual visitors.
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    let feeds: HashMap<_,_> = state.workspaces.iter().map(|(a,w)| (*a,serde_json::json!({"market":w.stream_tx.borrow().clone(),"reference":w.reference_envelope(*a,w.reference_tx.borrow().clone())}))).collect();
+    (
+        [(header::CACHE_CONTROL, "no-store")],
+        Json(serde_json::json!({"feeds":feeds,"delivery":"polled","interval_seconds":2})),
+    )
+}
+async fn outcome_board(
+    State(state): State<AppState>,
+    Query(selection): Query<Selection>,
+) -> Response {
+    let Some(archive) = &state.archive else {
+        return Json(serde_json::json!({"status":"not_configured","contracts":[]})).into_response();
+    };
+    match archive.board(selection.asset).await {
+        Ok(board) => ([(header::CACHE_CONTROL, "public, max-age=30")], Json(board)).into_response(),
+        Err(_) => (
+            StatusCode::BAD_GATEWAY,
+            "History archive temporarily unavailable",
+        )
+            .into_response(),
+    }
+}
+async fn collect_history(State(archive): State<Arc<outcomes::Archive>>) -> Response {
+    match archive.collect().await {
+        Ok(stored) => Json(serde_json::json!({"stored":stored})).into_response(),
+        Err(error) => {
+            eprintln!("History collection incomplete: {error}");
+            (
+                StatusCode::BAD_GATEWAY,
+                "History collection incomplete; retry scheduled",
+            )
+                .into_response()
+        }
+    }
+}
+async fn final_minute_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/final-minute.js"),
+    )
+}
+async fn focus_style() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/css; charset=utf-8")],
+        include_str!("../public/focus.css"),
+    )
+}
+async fn theme_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/theme.js"),
+    )
+}
+async fn home_visuals_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/home-visuals.js"),
+    )
+}
+async fn homepage_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/homepage.js"),
+    )
+}
+async fn navigation_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/navigation.js"),
+    )
+}
+async fn homepage_art() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "image/webp")],
+        include_bytes!("../public/art/quarter-hour-v1.webp").as_slice(),
+    )
+}
+async fn history_board_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/outcome-board.js"),
+    )
+}
+async fn combo_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/combo-lab.js"),
+    )
 }
 async fn asset_list() -> Json<Vec<assets::AssetInfo>> {
     Json(Asset::ALL.into_iter().map(Asset::info).collect())
@@ -81,6 +244,15 @@ async fn snapshot(State(state): State<AppState>, Query(selection): Query<Selecti
         }
     };
     let market = current_market(&markets, Utc::now()).cloned();
+    state.workspaces[&selection.asset]
+        .final_minute
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .market(
+            selection.asset,
+            market.as_ref(),
+            Utc::now().timestamp_millis(),
+        );
     let (order_book, order_book_error) = match &market {
         Some(market) => match client.order_book(&market.ticker).await {
             Ok(book) => (Some(book), false),
@@ -157,18 +329,37 @@ async fn reference_live(
     State(state): State<AppState>,
     Query(selection): Query<Selection>,
 ) -> Sse<impl futures_util::Stream<Item = Result<Event, Infallible>>> {
-    let events = WatchStream::new(state.workspaces[&selection.asset].reference_tx.subscribe()).map(
-        |update| {
-            Ok(Event::default()
-                .json_data(update)
-                .expect("reference update is serializable"))
-        },
-    );
+    let workspace = state.workspaces[&selection.asset].clone();
+    let events = WatchStream::new(workspace.reference_tx.subscribe()).map(move |update| {
+        Ok(Event::default()
+            .json_data(workspace.reference_envelope(selection.asset, update))
+            .expect("reference update is serializable"))
+    });
     Sse::new(events).keep_alive(KeepAlive::default())
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let port: u16 = std::env::var("PORT")
+        .or_else(|_| std::env::var("DASHBOARD_PORT"))
+        .unwrap_or_else(|_| "3000".into())
+        .parse()?;
+    let address: IpAddr = std::env::var("DASHBOARD_BIND_ADDRESS")
+        .unwrap_or_else(|_| "127.0.0.1".into())
+        .parse()?;
+    let archive = outcomes::Archive::from_env().map_err(|_| "Invalid history configuration")?;
+    if std::env::var("DASHBOARD_ROLE").as_deref() == Ok("collector") {
+        let archive = archive.ok_or("Collector requires history configuration")?;
+        let app = Router::new()
+            .route("/collect", post(collect_history))
+            .route("/api/health", get(|| async { "ok" }))
+            .with_state(archive);
+        let listener = tokio::net::TcpListener::bind((address, port)).await?;
+        axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown())
+            .await?;
+        return Ok(());
+    }
     let client = Arc::new(Client::new()?);
     let credentials = stream::Credentials::from_env()
         .map_err(|error| format!("Stream configuration: {error}"))?;
@@ -178,7 +369,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (reference_tx, _reference_rx) =
             watch::channel(reference::ReferenceUpdate::status("connecting"));
         let history = Arc::new(history::HistoryService::new(credentials.clone(), asset)?);
-        reference::start(credentials.clone(), reference_tx.clone(), asset);
+        let final_minute = final_minute::Recorder::shared();
+        reference::start(
+            credentials.clone(),
+            reference_tx.clone(),
+            asset,
+            final_minute.clone(),
+        );
         stream::start(client.clone(), credentials.clone(), tx.clone(), asset);
         workspaces.insert(
             asset,
@@ -187,14 +384,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 stream_tx: tx,
                 reference_tx,
                 history,
+                final_minute,
             },
         );
     }
+    let combo_service = Arc::new(combos::Service::new(client.clone())?);
+    let polling = std::env::var("DASHBOARD_DELIVERY").as_deref() == Ok("poll");
     let state = AppState {
         workspaces: Arc::new(workspaces),
+        archive,
+        combos: combo_service,
+        polling,
     };
+    let limiter = Arc::new(std::sync::Mutex::new(ApiBudget {
+        tokens: 120.0,
+        at: std::time::Instant::now(),
+    }));
+    let egress = Arc::new(std::sync::Mutex::new(EgressBudget {
+        tokens: 1024.0 * 1024.0,
+        at: std::time::Instant::now(),
+    }));
     let app = Router::new()
         .route("/", get(index))
+        .route("/api/health", get(|| async { "ok" }))
+        .route("/api/outcomes", get(outcome_board))
+        .route("/api/combos/quote", get(combo_quote))
+        .route("/api/feeds", get(feeds))
+        .route("/assets/feed-client.js", get(feed_script))
+        .route("/assets/homepage.js", get(homepage_script))
+        .route("/assets/focus.css", get(focus_style))
+        .route("/assets/theme.js", get(theme_script))
+        .route("/assets/home-visuals.js", get(home_visuals_script))
+        .route("/assets/final-minute.js", get(final_minute_script))
+        .route("/assets/navigation.js", get(navigation_script))
+        .route("/assets/quarter-hour-v1.webp", get(homepage_art))
+        .route("/assets/outcome-board.js", get(history_board_script))
+        .route("/assets/combo-lab.js", get(combo_script))
         .route("/assets/lightweight-charts-5.2.1.js", get(chart_library))
         .route("/assets/chart-data.js", get(chart_data))
         .route("/licenses/lightweight-charts", get(chart_license))
@@ -204,12 +429,160 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/history/market", get(historical_market))
         .route("/api/live", get(live))
         .route("/api/reference", get(reference_live))
-        .with_state(state);
-    let port: u16 = std::env::var("DASHBOARD_PORT")
-        .unwrap_or_else(|_| "3000".into())
-        .parse()?;
-    let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, port)).await?;
+        .with_state(state)
+        .layer(middleware::from_fn(move |request: Request, next: Next| {
+            let limiter = limiter.clone();
+            let egress = egress.clone();
+            async move {
+                if polling && matches!(request.uri().path(), "/api/live" | "/api/reference") {
+                    return (
+                        StatusCode::GONE,
+                        "Use /api/feeds for budget-mode live updates",
+                    )
+                        .into_response();
+                }
+                if polling || request.uri().path().starts_with("/api/") {
+                    let allowed = limiter
+                        .lock()
+                        .map(|mut budget| budget.allow(std::time::Instant::now()))
+                        .unwrap_or(false);
+                    if !allowed {
+                        return (
+                            StatusCode::TOO_MANY_REQUESTS,
+                            [(header::RETRY_AFTER, "3")],
+                            "Please retry shortly",
+                        )
+                            .into_response();
+                    }
+                }
+                let static_asset = request.uri().path().starts_with("/assets/")
+                    && request.uri().path() != "/assets/feed-client.js";
+                let mut response = next.run(request).await;
+                if polling {
+                    let (parts, body) = response.into_parts();
+                    let Ok(bytes) = axum::body::to_bytes(body, 1024 * 1024).await else {
+                        return StatusCode::BAD_GATEWAY.into_response();
+                    };
+                    let allowed = egress
+                        .lock()
+                        .map(|mut b| b.allow(std::time::Instant::now(), bytes.len()))
+                        .unwrap_or(false);
+                    if !allowed {
+                        return (
+                            StatusCode::TOO_MANY_REQUESTS,
+                            [(header::RETRY_AFTER, "30")],
+                            "Shared data allowance busy. Retry shortly.",
+                        )
+                            .into_response();
+                    }
+                    response = Response::from_parts(parts, axum::body::Body::from(bytes));
+                }
+                if static_asset {
+                    response.headers_mut().insert(
+                        header::CACHE_CONTROL,
+                        header::HeaderValue::from_static("public, max-age=3600"),
+                    );
+                }
+
+                response.headers_mut().insert(
+                    header::X_CONTENT_TYPE_OPTIONS,
+                    header::HeaderValue::from_static("nosniff"),
+                );
+                response.headers_mut().insert(
+                    header::REFERRER_POLICY,
+                    header::HeaderValue::from_static("strict-origin-when-cross-origin"),
+                );
+                response
+            }
+        }));
+    let listener = tokio::net::TcpListener::bind((address, port)).await?;
     println!("Crypto Prediction Lab: http://127.0.0.1:{port}");
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown())
+        .await?;
     Ok(())
+}
+
+async fn shutdown() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        if let Ok(mut signal) =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+        {
+            signal.recv().await;
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! { _ = ctrl_c => {}, _ = terminate => {} }
+}
+
+// Bounds normal outbound bandwidth across visitors in the low-cost production mode.
+// Infrastructure requests denied before reaching the app can still be billed by Google.
+struct EgressBudget {
+    tokens: f64,
+    at: std::time::Instant,
+}
+impl EgressBudget {
+    fn allow(&mut self, now: std::time::Instant, bytes: usize) -> bool {
+        self.tokens = (self.tokens + now.saturating_duration_since(self.at).as_secs_f64() * 8192.0)
+            .min(1024.0 * 1024.0);
+        self.at = now;
+        if self.tokens < bytes as f64 {
+            return false;
+        }
+        self.tokens -= bytes as f64;
+        true
+    }
+}
+struct ApiBudget {
+    tokens: f64,
+    at: std::time::Instant,
+}
+impl ApiBudget {
+    fn allow(&mut self, now: std::time::Instant) -> bool {
+        self.tokens =
+            (self.tokens + now.saturating_duration_since(self.at).as_secs_f64() * 2.0).min(120.0);
+        self.at = now;
+        if self.tokens < 1.0 {
+            return false;
+        }
+        self.tokens -= 1.0;
+        true
+    }
+}
+#[cfg(test)]
+mod hosting_tests {
+    use super::*;
+    #[test]
+    fn outbound_budget_limits_large_replies_and_refills() {
+        let now = std::time::Instant::now();
+        let mut b = EgressBudget {
+            tokens: 1024.0 * 1024.0,
+            at: now,
+        };
+        assert!(b.allow(now, 1024 * 1024));
+        assert!(!b.allow(now, 1));
+        assert!(b.allow(now + std::time::Duration::from_secs(1), 8192));
+        assert!(!b.allow(now + std::time::Duration::from_secs(1), 1));
+    }
+    #[test]
+    fn api_budget_replenishes_and_caps_bursts() {
+        let now = std::time::Instant::now();
+        let mut budget = ApiBudget {
+            tokens: 120.0,
+            at: now,
+        };
+        for _ in 0..120 {
+            assert!(budget.allow(now));
+        }
+        assert!(!budget.allow(now));
+        let later = now + std::time::Duration::from_secs(1);
+        assert!(budget.allow(later));
+        assert!(budget.allow(later));
+        assert!(!budget.allow(later));
+    }
 }

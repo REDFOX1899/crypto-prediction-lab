@@ -11,4 +11,4 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --locked --workspace --all-targets -- -D warnings
       - run: cargo test --locked --workspace
-      - run: node --test apps/dashboard/tests/chart-data.test.cjs
+      - run: node --test apps/dashboard/tests/*.test.cjs

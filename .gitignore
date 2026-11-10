@@ -6,3 +6,20 @@
 # Never commit private keys
 *.pem
 *.key
+
+# Local captures, credentials and build/deployment state
+.DS_Store
+/data/
+/captures/
+*.sqlite
+*.sqlite-*
+*.db
+*.parquet
+*.ndjson
+*.log
+*.p8
+*.p12
+.terraform/
+*.tfstate
+*.tfstate.*
+*service-account*.json
