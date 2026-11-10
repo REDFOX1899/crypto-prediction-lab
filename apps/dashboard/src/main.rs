@@ -38,6 +38,7 @@ struct Workspace {
     reference_tx: watch::Sender<reference::ReferenceUpdate>,
     history: std::sync::Arc<history::HistoryService>,
     final_minute: final_minute::Shared,
+    snapshots: Arc<tokio::sync::Mutex<SnapshotCache>>,
 }
 
 #[derive(Serialize)]
@@ -434,6 +435,28 @@ struct Snapshot {
     order_book_error: bool,
 }
 
+#[derive(Default)]
+struct SnapshotCache {
+    value: Option<Snapshot>,
+    retry_at: Option<std::time::Instant>,
+}
+
+impl Snapshot {
+    fn reusable_at(&self, now: DateTime<Utc>) -> bool {
+        let age = (now - self.fetched_at).num_milliseconds();
+        (0..5000).contains(&age)
+            && self.fetched_at.timestamp().div_euclid(900) == now.timestamp().div_euclid(900)
+            && self
+                .market
+                .as_ref()
+                .is_none_or(|m| m.open_time <= now && now < m.close_time)
+    }
+
+    fn response(&self) -> Response {
+        ([(header::CACHE_CONTROL, "no-store")], Json(self)).into_response()
+    }
+}
+
 async fn index() -> Html<&'static str> {
     Html(include_str!("../public/index.html"))
 }
@@ -460,25 +483,57 @@ async fn chart_license() -> impl IntoResponse {
 }
 
 async fn snapshot(State(state): State<AppState>, Query(selection): Query<Selection>) -> Response {
-    let client = &state.workspaces[&selection.asset].client;
-    let markets = match client.open_markets(selection.asset.info().series).await {
+    let workspace = &state.workspaces[&selection.asset];
+    shared_snapshot(
+        &workspace.snapshots,
+        &workspace.client,
+        &workspace.final_minute,
+        selection.asset,
+    )
+    .await
+}
+
+async fn shared_snapshot(
+    snapshots: &tokio::sync::Mutex<SnapshotCache>,
+    client: &Client,
+    recorder: &final_minute::Shared,
+    asset: Asset,
+) -> Response {
+    // Hold only this asset's lock so simultaneous visitors share one market/book fetch.
+    let mut cache = snapshots.lock().await;
+    if let Some(s) = &cache.value
+        && s.reusable_at(Utc::now())
+    {
+        return s.response();
+    }
+    let unavailable = || {
+        (
+            StatusCode::BAD_GATEWAY,
+            [
+                (header::RETRY_AFTER, "3"),
+                (header::CACHE_CONTROL, "no-store"),
+            ],
+            "Kalshi market data is unavailable",
+        )
+            .into_response()
+    };
+    if cache
+        .retry_at
+        .is_some_and(|retry| std::time::Instant::now() < retry)
+    {
+        return unavailable();
+    }
+    let markets = match client.open_markets(asset.info().series).await {
         Ok(markets) => markets,
         Err(error) => {
             eprintln!("Could not fetch markets: {error}");
-            return (StatusCode::BAD_GATEWAY, "Kalshi market data is unavailable").into_response();
+            cache.retry_at = Some(std::time::Instant::now() + std::time::Duration::from_secs(3));
+            return unavailable();
         }
     };
-    let market = current_market(&markets, Utc::now()).cloned();
-    state.workspaces[&selection.asset]
-        .final_minute
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .market(
-            selection.asset,
-            market.as_ref(),
-            Utc::now().timestamp_millis(),
-        );
-    let (order_book, order_book_error) = match &market {
+    let fetched_at = Utc::now();
+    let mut market = current_market(&markets, fetched_at).cloned();
+    let (mut order_book, mut order_book_error) = match &market {
         Some(market) => match client.order_book(&market.ticker).await {
             Ok(book) => (Some(book), false),
             Err(error) => {
@@ -488,16 +543,27 @@ async fn snapshot(State(state): State<AppState>, Query(selection): Query<Selecti
         },
         None => (None, false),
     };
-    (
-        [(header::CACHE_CONTROL, "no-store")],
-        Json(Snapshot {
-            fetched_at: Utc::now(),
+    let now = Utc::now();
+    if market.as_ref().is_some_and(|m| m.close_time <= now) {
+        market = None;
+        order_book = None;
+        order_book_error = false;
+    }
+    recorder.lock().unwrap_or_else(|e| e.into_inner()).market(
+        asset,
+        market.as_ref(),
+        now.timestamp_millis(),
+    );
+    cache.retry_at = None;
+    cache
+        .value
+        .insert(Snapshot {
+            fetched_at,
             market,
             order_book,
             order_book_error,
-        }),
-    )
-        .into_response()
+        })
+        .response()
 }
 
 async fn historical_reference(
@@ -618,6 +684,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 reference_tx,
                 history,
                 final_minute,
+                snapshots: Arc::default(),
             },
         );
     }
@@ -784,4 +851,67 @@ async fn shutdown() {
     #[cfg(not(unix))]
     let terminate = std::future::pending::<()>();
     tokio::select! { _ = ctrl_c => {}, _ = terminate => {} }
+}
+
+#[cfg(test)]
+mod snapshot_tests {
+    use super::*;
+    use serde_json::json;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    #[tokio::test]
+    async fn overlapping_visitors_reuse_the_same_timestamp_and_book_fetch() {
+        let server = MockServer::start().await;
+        let now = Utc::now();
+        let open = DateTime::from_timestamp(now.timestamp().div_euclid(900) * 900, 0).unwrap();
+        let market = json!({"ticker":"KXBTC15M-A","title":"Test","status":"active",
+            "open_time":open,"close_time":open+chrono::Duration::minutes(15)});
+        Mock::given(method("GET"))
+            .and(path("/markets"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"markets":[market]})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/markets/KXBTC15M-A/orderbook"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"orderbook_fp":{"yes_dollars":[],"no_dollars":[]}})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = Client::with_base_url(&server.uri()).unwrap();
+        let cache = tokio::sync::Mutex::new(SnapshotCache::default());
+        let recorder = final_minute::Recorder::shared();
+        let calls = (0..6).map(|_| shared_snapshot(&cache, &client, &recorder, Asset::Btc));
+        let mut bodies = Vec::new();
+        for response in futures_util::future::join_all(calls).await {
+            assert_eq!(response.status(), StatusCode::OK);
+            bodies.push(
+                axum::body::to_bytes(response.into_body(), 4096)
+                    .await
+                    .unwrap(),
+            );
+        }
+        assert!(bodies.windows(2).all(|pair| pair[0] == pair[1]));
+    }
+
+    #[test]
+    fn snapshots_expire_at_ttl_and_at_window_rollover() {
+        let close = DateTime::from_timestamp(900, 0).unwrap();
+        let mut s = Snapshot {
+            fetched_at: close - chrono::Duration::seconds(2),
+            market: None,
+            order_book: None,
+            order_book_error: false,
+        };
+        assert!(s.reusable_at(close - chrono::Duration::seconds(1)));
+        assert!(!s.reusable_at(close));
+        s.fetched_at = close;
+        assert!(!s.reusable_at(close + chrono::Duration::seconds(5)));
+    }
 }
