@@ -194,6 +194,7 @@ pub struct Frozen {
     generation: String,
     model_committed_at: DateTime<Utc>,
     packet_hash: String,
+    predictions: [f64; 2],
 }
 impl Frozen {
     pub fn new(
@@ -208,7 +209,9 @@ impl Frozen {
         if value != serde_json::to_value(&model).map_err(|_| "invalid_model")? {
             return Err("invalid_model");
         }
+        let (raw, calibrated) = model.predict(&features(packet)?);
         let result = Self {
+            predictions: [raw, calibrated],
             model,
             object_name: name,
             generation,
@@ -220,7 +223,20 @@ impl Frozen {
     }
     pub fn validate(&self, packet: &Value) -> Result<(), &'static str> {
         self.model.validate()?;
-        features(packet)?;
+        let (raw, calibrated) = self.model.predict(&features(packet)?);
+        if self
+            .predictions
+            .iter()
+            .zip([raw, calibrated])
+            .any(|(stored, computed)| {
+                !stored.is_finite()
+                    || *stored <= 0.
+                    || *stored >= 1.
+                    || (stored - computed).abs() > 1e-12
+            })
+        {
+            return Err("forecast_integrity");
+        }
         if self.object_name
             != object_name(&decision::hash(
                 &serde_json::to_value(&self.model).map_err(|_| "invalid_model")?,
@@ -237,8 +253,7 @@ impl Frozen {
     }
     pub fn response(&self, packet: &Value) -> Result<Value, &'static str> {
         self.validate(packet)?;
-        let x = features(packet)?;
-        let (raw, calibrated) = self.model.predict(&x);
+        let [raw, calibrated] = self.predictions;
         let a: Asset =
             serde_json::from_value(packet["asset"].clone()).map_err(|_| "invalid_asset")?;
         Ok(
@@ -844,6 +859,14 @@ pub(crate) mod tests {
         bad["model"]["calibration_max_label_available_at"] = json!("2026-11-11T12:00:00Z");
         assert!(
             serde_json::from_value::<Frozen>(bad)
+                .unwrap()
+                .validate(&p)
+                .is_err()
+        );
+        let mut changed = serde_json::to_value(&proof).unwrap();
+        changed["predictions"][0] = json!(0.999);
+        assert!(
+            serde_json::from_value::<Frozen>(changed)
                 .unwrap()
                 .validate(&p)
                 .is_err()

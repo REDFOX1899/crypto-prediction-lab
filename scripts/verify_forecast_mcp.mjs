@@ -50,6 +50,7 @@ try {
     const x = [1,Math.log(mid/(1-mid)),Number(p.spread_usd),(p.open_ts+900 - Number(ns(p.cutoff)/1000000n)/1000)/900,(yes-no)/(yes+no),Number(p.asset==='BTC'),Number(p.asset==='ETH')];
     const standardized = x.map((v,j) => j===0 ? 1 : Math.max(-10,Math.min(10,(v-m.mean[j])/m.scale[j])));
     const z = standardized.reduce((s,v,j) => s+v*m.coefficients[j],0);
+    close(data.p_yes_raw,proof.predictions[0]); close(data.p_yes_calibrated,proof.predictions[1]);
     close(data.p_yes_raw,clip(sigmoid(z))); close(data.p_yes_calibrated,clip(sigmoid(m.calibration[0]+m.calibration[1]*z)));
     close(data.baselines.constant_half,.5); close(Number(data.baselines.market_midpoint),Number(p.yes_midpoint_usd));
     close(data.baselines.historical_yes_rate,m.historical_yes_rate[['BTC','ETH','SOL'].indexOf(p.asset)]);
