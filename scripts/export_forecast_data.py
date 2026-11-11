@@ -50,7 +50,9 @@ def fetch(start, end):
     page = ''
     base = 'https://storage.googleapis.com/storage/v1/b/' + BUCKET + '/o'
     for _ in range(4):
-        query = {'prefix': 'decisions/v1/', 'maxResults': '1000', 'fields': 'items(name,generation,timeCreated),nextPageToken'}
+        query = {'prefix': 'decisions/v1/', 'startOffset': 'decisions/v1/s%d_' % start_ts,
+                 'endOffset': 'decisions/v1/s%d_' % end_ts, 'maxResults': '1000',
+                 'fields': 'items(name,generation,timeCreated),nextPageToken'}
         if page:
             query['pageToken'] = page
         with urllib.request.urlopen(urllib.request.Request(base + '?' + urllib.parse.urlencode(query), headers=headers), timeout=30) as response:

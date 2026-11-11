@@ -2,6 +2,8 @@
 
 Ticket C adds a deterministic market-midpoint baseline for BTC, ETH and SOL 15-minute singles. Strategy `market_midpoint_v1` estimates a YES probability proxy as (best YES bid + derived YES ask) / 2. It is a benchmark for later model comparisons. Calibration, predictive edge, executable price ceilings and paper fills remain unvalidated or separate work.
 
+Original Ticket F now freezes separate experimental numerical forecasts in new timely decisions; see [forecasting/calibration](forecasting-calibration.md). The midpoint packet/run identity stays unchanged and old decisions are never fitted retrospectively.
+
 ## Cycle lifetime
 
 The private `crypto-cycle-checkpoints` job now begins in the prior minute through `/collect-opening`. Bounded retries admit a handler that discovers the exact contracts and captures after +5s. Immediately after durable opening captures, the runner processes all three assets concurrently. It freezes its actual UTC cutoff before reading the assigned opening document. The pure projection validates that document and constructs an allowlist packet. The numerical strategy consumes the projected midpoint and performs no network calls. The host stores the first forecast or abstention before requesting any link to later data.
