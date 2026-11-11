@@ -1,0 +1,194 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-11-11T18:43:13.729913Z",
+  "protocol": "prospective_opening_eval_v1",
+  "application_source": "a2f308b8f91b891136de5c32b825370889236b90",
+  "cloud_build": "8efae977-78db-45bf-98c0-eff68d7ff6b7",
+  "image_digest": "sha256:b6268f7567cf305c74959cdb4a88c79bfb2612ba685e37e8a20ba71b7e689bbf",
+  "experiment": {
+    "manifest": {
+      "bootstrap_replicates": 2000,
+      "bootstrap_seed": 17,
+      "confirmatory_start": "2026-11-12T00:00:00Z",
+      "engineering_start": "2026-11-11T16:15:00Z",
+      "log_loss_clip_millionths": 1,
+      "minimum_complete_days": 30,
+      "minimum_coverage_basis_points": 9500,
+      "model_committed_at": "2026-11-11T15:52:37.057Z",
+      "model_generation": "1794412357049817",
+      "model_object": "forecast_models/v1/661dc54e09ee9f3665a5a5863c9de53247aa34e92502009367b514c4737a7bd5.json",
+      "primary_contrast": "brier_calibrated_minus_midpoint",
+      "protocol": "prospective_opening_eval_v1",
+      "schema_version": 1,
+      "strategies": [
+        "constant_half",
+        "historical_yes_rate",
+        "market_midpoint",
+        "logistic_raw",
+        "logistic_calibrated"
+      ]
+    },
+    "object": {
+      "name": "prospective/experiments/v1/97616a6481c3a6cc1435afb6198770a93874e37f4cd6779169d8247d49fc7a64.json",
+      "generation": "1794420739411830",
+      "committed_at": "2026-11-11T18:12:19.421Z"
+    }
+  },
+  "first_report": {
+    "committed_at": "2026-11-11T18:33:59.997Z",
+    "generation": "1794422039991040",
+    "name": "prospective/reports/v1/97616a6481c3a6cc1435afb6198770a93874e37f4cd6779169d8247d49fc7a64/days/2026-11-11/20b93ef27c0caf7f5f082adf0f951bf59a83a44d72244af8a3a9d711803fdcc5.json"
+  },
+  "first_report_asof": "2026-11-11T18:33:58.789264Z",
+  "second_report": {
+    "committed_at": "2026-11-11T18:36:05.145Z",
+    "generation": "1794422165136814",
+    "name": "prospective/reports/v1/97616a6481c3a6cc1435afb6198770a93874e37f4cd6779169d8247d49fc7a64/days/2026-11-11/c3d8da8800c0337e94417eb4b2b345d6db502716d0f13d6e620ec8f2cddc2b48.json"
+  },
+  "summary": {
+    "committed_at": "2026-11-11T18:34:43.605Z",
+    "generation": "1794422083598770",
+    "name": "prospective/summaries/v1/97616a6481c3a6cc1435afb6198770a93874e37f4cd6779169d8247d49fc7a64/e8a1105ddb1d8cc4962b4c6975107ef43d22cdc9eef87059994913ec4db3d206.json"
+  },
+  "initial_coverage": {
+    "BTC": {
+      "expected": 9,
+      "timely_forecasts": 9,
+      "scored": 9,
+      "unscored": 0
+    },
+    "ETH": {
+      "expected": 9,
+      "timely_forecasts": 9,
+      "scored": 9,
+      "unscored": 0
+    },
+    "SOL": {
+      "expected": 9,
+      "timely_forecasts": 9,
+      "scored": 9,
+      "unscored": 0
+    },
+    "pooled": {
+      "expected": 27,
+      "timely_forecasts": 27,
+      "scored": 27,
+      "unscored": 0
+    }
+  },
+  "phase": "engineering",
+  "full_utc_day": false,
+  "eligible_complete_days": 0,
+  "day_block_interval": null,
+  "status": "insufficient_evidence",
+  "paper_order_eligible": false,
+  "report_cadence": "on_demand",
+  "independent_arithmetic": {
+    "status": "passed",
+    "forecast_arithmetic_and_cutoff_checks": 27,
+    "score_pairs": 20,
+    "reliability_bins": 100,
+    "rows": 27,
+    "asof": "2026-11-11T18:33:58.789264Z"
+  },
+  "independent_second": {
+    "status": "passed",
+    "forecast_arithmetic_and_cutoff_checks": 27,
+    "score_pairs": 20,
+    "reliability_bins": 100,
+    "rows": 27,
+    "asof": "2026-11-11T18:36:03.452569Z"
+  },
+  "replay": {
+    "first_core": "exact",
+    "second_core": "exact",
+    "unavailable_future_label_and_decision_additions": "complete_report_and_hashes_unchanged",
+    "second_report_links_first": true,
+    "metrics_and_forecast_set_unchanged_between_reports": true
+  },
+  "immutability": {
+    "unchanged_decision_generations": 27,
+    "original_report_generation_preserved": true,
+    "live_capture_admission_guard": 503,
+    "retry_after_seconds": 45
+  },
+  "mcp_blinding": [
+    {
+      "asset": "BTC",
+      "status": "passed",
+      "checks": 15,
+      "evaluation_reports_outcomes_and_future_reads": "denied",
+      "original_packet_and_forecast": "unchanged"
+    },
+    {
+      "asset": "ETH",
+      "status": "passed",
+      "checks": 15,
+      "evaluation_reports_outcomes_and_future_reads": "denied",
+      "original_packet_and_forecast": "unchanged"
+    },
+    {
+      "asset": "SOL",
+      "status": "passed",
+      "checks": 15,
+      "evaluation_reports_outcomes_and_future_reads": "denied",
+      "original_packet_and_forecast": "unchanged"
+    }
+  ],
+  "access_and_quotes": {
+    "checks": {
+      "public_absent/research/evaluate-day": 404,
+      "anonymous_denied/research/evaluate-day": 403,
+      "public_absent/research/evaluate-summary": 404,
+      "anonymous_denied/research/evaluate-summary": 403,
+      "public_absent/research/evaluation?day=2026-11-11": 404,
+      "anonymous_denied/research/evaluation?day=2026-11-11": 403,
+      "caller_asof": 422,
+      "caller_model": 422,
+      "caller_results": 422,
+      "future_day": 400,
+      "old_day": 400,
+      "oversized": 413,
+      "read_override": 400
+    },
+    "public_health": 200,
+    "quotes": {
+      "BTC": {
+        "loaded": true,
+        "fetched_at": "2026-11-11T18:37:33.691884201Z"
+      },
+      "ETH": {
+        "loaded": true,
+        "fetched_at": "2026-11-11T18:37:33.782210782Z"
+      },
+      "SOL": {
+        "loaded": true,
+        "fetched_at": "2026-11-11T18:37:34.196474557Z"
+      }
+    }
+  },
+  "configuration": {
+    "collector_revision": "crypto-history-collector-00016-j4q",
+    "collector_traffic_percent": 100,
+    "collector_settings_limits_and_iam_preserved": true,
+    "mcp_template_and_iam_unchanged": true,
+    "public_template_unchanged": true,
+    "bucket_iam_unchanged": true,
+    "scheduler_settings_unchanged": true
+  },
+  "checks": {
+    "rust": 127,
+    "frontend": 58,
+    "python": 25,
+    "fmt": "passed",
+    "locked_clippy_warnings_denied": "passed"
+  },
+  "github_deployment": 7718545222,
+  "source_ci": "https://github.com/REDFOX1899/crypto-prediction-lab/actions/runs/43077441480",
+  "main_ci": "https://github.com/REDFOX1899/crypto-prediction-lab/actions/runs/43078589139",
+  "limitations": [
+    "First partial engineering day is not untouched confirmatory evidence",
+    "No fitted probability bounds, fills, profitability or market-edge claim",
+    "Only observed official revisions are retained; overwritten past versions cannot be reconstructed"
+  ]
+}
