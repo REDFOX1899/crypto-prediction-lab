@@ -7,6 +7,7 @@ mod cycle_dispatch;
 mod decision;
 mod decision_runner;
 mod delivery;
+mod evaluation_runner;
 mod final_minute;
 mod forecast;
 mod history;
@@ -14,6 +15,7 @@ mod market_rules;
 mod order_book;
 mod outcomes;
 mod paper_levels;
+mod prospective;
 mod quote_study;
 mod reference;
 mod research;
@@ -890,6 +892,12 @@ async fn reference_live(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if matches!(
+        std::env::var("DASHBOARD_ROLE").as_deref(),
+        Ok("evaluation-manifest" | "evaluation-replay")
+    ) {
+        return prospective::cli();
+    }
     if std::env::var("DASHBOARD_ROLE").as_deref() == Ok("forecast-fit") {
         return forecast::fit_cli();
     }
@@ -921,6 +929,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(runner) = &runner {
             runner.warm_forecast().await;
         }
+        let evaluation = evaluation_runner::Service::from_env(archive.clone())
+            .map_err(|_| "Invalid evaluator configuration")?;
         let app = Router::new()
             .route("/collect-opening", post(collect_opening))
             .route("/collect-followup", post(collect_followup))
@@ -936,7 +946,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 archive,
                 context,
                 runner,
-            });
+            })
+            .merge(evaluation_runner::router(evaluation));
         let listener = tokio::net::TcpListener::bind((address, port)).await?;
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown())

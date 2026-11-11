@@ -58,6 +58,12 @@ struct Auth {
     token: String,
     until: Instant,
 }
+fn archived_version_current(c: &Contract, market: &Value, updated: Option<&str>) -> bool {
+    c.updated_time.as_deref() == updated
+        && c.result == market["result"].as_str().unwrap_or("")
+        && (c.candle_count > 0 || !["yes", "no"].contains(&c.result.as_str()))
+}
+
 pub struct Archive {
     http: reqwest::Client,
     documents: String,
@@ -68,6 +74,21 @@ pub struct Archive {
     detail_cache: Mutex<HashMap<String, (Instant, Value)>>,
 }
 impl Archive {
+    #[cfg(test)]
+    pub(crate) fn evaluator_test() -> Arc<Self> {
+        Arc::new(Self {
+            http: reqwest::Client::new(),
+            documents: "unused-test-archive".into(),
+            auth: Mutex::new(Some(Auth {
+                token: "local-test".into(),
+                until: Instant::now() + Duration::from_secs(60),
+            })),
+            cache: Mutex::new(HashMap::new()),
+            collection_lock: Mutex::new(()),
+            study_cache: Mutex::new(None),
+            detail_cache: Mutex::new(HashMap::new()),
+        })
+    }
     pub fn from_env() -> Result<Option<Arc<Self>>, Failure> {
         let Ok(project) = std::env::var("HISTORY_PROJECT") else {
             return Ok(None);
@@ -600,7 +621,7 @@ impl Archive {
                     let updated = market.get("updated_time").and_then(Value::as_str);
                     if existing
                         .get(ticker)
-                        .is_some_and(|c| c.updated_time.as_deref() == updated && c.candle_count > 0)
+                        .is_some_and(|c| archived_version_current(c, market, updated))
                     {
                         continue;
                     }
@@ -640,24 +661,32 @@ impl Archive {
         let close = market["close_time"].as_str().ok_or("Missing close time")?;
         let start = DateTime::parse_from_rfc3339(open)?.timestamp();
         let end = DateTime::parse_from_rfc3339(close)?.timestamp();
-        let result = market["result"].as_str().ok_or("No settled result")?;
-        // Do not interpret void, nonbinary or pending outcomes as UP/DOWN.
-        if !["yes", "no"].contains(&result) || end > Utc::now().timestamp() {
+        // Preserve an invalidating settled-state correction as an explicit
+        // non-binary result; never leave a stale YES/NO label in its place.
+        let result = market["result"].as_str().unwrap_or("");
+        if result.len() > 32 {
+            return Err("Invalid settled result".into());
+        }
+        if end > Utc::now().timestamp() {
             return Ok(());
         }
-        let candles = kalshi_json(
-            &self.http,
-            &format!(
-                "{API}/series/{}/markets/{ticker}/candlesticks",
-                asset.info().series
-            ),
-            &[
-                ("start_ts", start.to_string()),
-                ("end_ts", end.to_string()),
-                ("period_interval", "1".into()),
-            ],
-        )
-        .await?;
+        let candles = if !["yes", "no"].contains(&result) {
+            json!({"ticker":ticker,"candlesticks":[]})
+        } else {
+            kalshi_json(
+                &self.http,
+                &format!(
+                    "{API}/series/{}/markets/{ticker}/candlesticks",
+                    asset.info().series
+                ),
+                &[
+                    ("start_ts", start.to_string()),
+                    ("end_ts", end.to_string()),
+                    ("period_interval", "1".into()),
+                ],
+            )
+            .await?
+        };
         if candles["ticker"].as_str() != Some(ticker) {
             return Err("Mismatched candle ticker".into());
         }
@@ -787,6 +816,43 @@ async fn kalshi_json(
 mod tests {
     use super::*;
 
+    #[tokio::test]
+    async fn settled_nonbinary_correction_invalidates_old_label_without_candle_fetch() {
+        use wiremock::{
+            Mock, MockServer, ResponseTemplate,
+            matchers::{method, path},
+        };
+        let server = MockServer::start().await;
+        let mut archive = Arc::try_unwrap(Archive::evaluator_test()).ok().unwrap();
+        archive.documents = server.uri();
+        let market = json!({"ticker":"KXBTC15M-CORRECTED","open_time":"2026-11-10T20:00:00Z","close_time":"2026-11-10T20:15:00Z","status":"settled","result":"void","updated_time":"2026-11-11T01:00:00Z"});
+        Mock::given(method("PATCH"))
+            .and(path("/contracts_btc/KXBTC15M-CORRECTED"))
+            .respond_with(|r: &wiremock::Request| {
+                let v: Value = serde_json::from_slice(&r.body).unwrap();
+                let c: Contract =
+                    serde_json::from_str(v["fields"]["summary"]["stringValue"].as_str().unwrap())
+                        .unwrap();
+                assert_eq!(c.result, "void");
+                assert_eq!(c.candle_count, 0);
+                assert!(c.best_entry.is_none());
+                assert!(archived_version_current(
+                    &c,
+                    &json!({"result":"void"}),
+                    c.updated_time.as_deref()
+                ));
+                assert!(!archived_version_current(
+                    &c,
+                    &json!({"result":"yes"}),
+                    c.updated_time.as_deref()
+                ));
+                ResponseTemplate::new(200).set_body_json(json!({}))
+            })
+            .expect(1)
+            .mount(&server)
+            .await;
+        archive.capture(Asset::Btc, &market).await.unwrap();
+    }
     #[tokio::test]
     async fn study_only_reads_the_fixed_manifest_and_reuses_the_public_projection() {
         use wiremock::{

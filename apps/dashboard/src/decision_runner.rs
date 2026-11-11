@@ -17,7 +17,7 @@ pub(crate) struct Store {
     pub(crate) bucket: String,
 }
 impl Store {
-    fn url(&self, name: &str) -> Result<reqwest::Url, Failure> {
+    pub(crate) fn url(&self, name: &str) -> Result<reqwest::Url, Failure> {
         let mut url =
             reqwest::Url::parse(&format!("{}/storage/v1/b/{}/o", self.base, self.bucket))?;
         url.path_segments_mut()
@@ -25,7 +25,7 @@ impl Store {
             .push(name);
         Ok(url)
     }
-    async fn json(response: reqwest::Response) -> Result<Value, Failure> {
+    pub(crate) async fn json(response: reqwest::Response) -> Result<Value, Failure> {
         let mut response = response.error_for_status()?;
         let mut bytes = Vec::new();
         while let Some(chunk) = response.chunk().await? {
@@ -63,7 +63,12 @@ impl Store {
             generation,
         }))
     }
-    async fn create(&self, name: &str, value: &Value, token: &str) -> Result<Stored, Failure> {
+    pub(crate) async fn create(
+        &self,
+        name: &str,
+        value: &Value,
+        token: &str,
+    ) -> Result<Stored, Failure> {
         let bytes = serde_json::to_vec(value)?;
         if bytes.len() > 65_536 {
             return Err("Private record exceeds limit".into());

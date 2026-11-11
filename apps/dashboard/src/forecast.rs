@@ -524,7 +524,7 @@ fn train(rows: &[Row], calibration: &[Row]) -> Result<Model, &'static str> {
     model.validate()?;
     Ok(model)
 }
-fn metrics(pairs: &[(f64, f64)]) -> Value {
+pub(crate) fn metrics(pairs: &[(f64, f64)]) -> Value {
     let n = pairs.len();
     if n == 0 {
         return json!({"rows":0,"brier":null,"log_loss":null,"reliability_bins":[]});
