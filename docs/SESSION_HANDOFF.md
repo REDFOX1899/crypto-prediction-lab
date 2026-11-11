@@ -2,6 +2,10 @@
 
 Updated: 10 November 2026, America/New_York.
 
+## Fee-aware paper levels — implementation prepared
+
+The owner requested Ticket F as fee-aware paper buy levels using cutoff-safe packets, with GitHub publication and deployment. Branch `codex/fee-aware-paper-levels` adds pure conditional policy `paper_buy_levels_v1` and read-only MCP `preview_paper_levels`. Existing packets lack as-of fee/tick evidence and calibrated bounds, so numeric ceilings are explicit scenarios and eligible order prices remain null. Local Rust checks pass (96 total tests), frontend tests pass (58), and Python tests pass (21). Independent real-packet stdio and deployment checks are in progress. See `fee-aware-paper-levels.md`.
+
 ## Ticket E — private MCP verified and deployed
 
 The owner requested the private MCP server, cutoff/outcome denials, GitHub publication and deployment. Branch `codex/private-research-mcp` contains source `acdcaf9` and repeatable SDK-host verifier `a628ee0`; both GitHub Actions runs passed (`42955425371`, `42955878682`). The official Rust SDK is pinned to 3.9.0. See `private-research-mcp.md` for the full contract and host setup.

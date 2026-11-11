@@ -11,6 +11,7 @@ mod final_minute;
 mod history;
 mod order_book;
 mod outcomes;
+mod paper_levels;
 mod quote_study;
 mod reference;
 mod research;
