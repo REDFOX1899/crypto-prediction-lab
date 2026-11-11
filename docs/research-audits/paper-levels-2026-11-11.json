@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "verification_date_utc": "2026-11-11",
+  "source_commit": "c781813b42c1f54870917172903e97f43413b2bd",
+  "policy_version": "paper_buy_levels_v1",
+  "mcp_revision": "crypto-research-mcp-00002-ts6",
+  "github_deployment": 7712986954,
+  "eligibility": "conditional preview only; eligible order prices null",
+  "assets": {
+    "BTC": {
+      "stdio_paper_host": {
+        "asset": "BTC",
+        "transport": "stdio",
+        "checks": 38,
+        "status": "passed",
+        "integer_oracle": "matched",
+        "future_outcome_and_policy_overrides": "denied",
+        "paper_order_eligible": false
+      },
+      "remote_paper_host": {
+        "asset": "BTC",
+        "transport": "http",
+        "checks": 38,
+        "status": "passed",
+        "integer_oracle": "matched",
+        "future_outcome_and_policy_overrides": "denied",
+        "paper_order_eligible": false
+      },
+      "remote_research_regression": {
+        "asset": "BTC",
+        "transport": "http",
+        "checks": 45,
+        "status": "passed",
+        "packet_hash_matches": true,
+        "future_and_outcome_access": "denied"
+      },
+      "inspector_current_protocol_stdio": "passed",
+      "inspector_current_protocol_http": "passed"
+    },
+    "ETH": {
+      "stdio_paper_host": {
+        "asset": "ETH",
+        "transport": "stdio",
+        "checks": 38,
+        "status": "passed",
+        "integer_oracle": "matched",
+        "future_outcome_and_policy_overrides": "denied",
+        "paper_order_eligible": false
+      },
+      "remote_paper_host": {
+        "asset": "ETH",
+        "transport": "http",
+        "checks": 38,
+        "status": "passed",
+        "integer_oracle": "matched",
+        "future_outcome_and_policy_overrides": "denied",
+        "paper_order_eligible": false
+      },
+      "remote_research_regression": {
+        "asset": "ETH",
+        "transport": "http",
+        "checks": 45,
+        "status": "passed",
+        "packet_hash_matches": true,
+        "future_and_outcome_access": "denied"
+      },
+      "inspector_current_protocol_stdio": "passed",
+      "inspector_current_protocol_http": "passed"
+    },
+    "SOL": {
+      "stdio_paper_host": {
+        "asset": "SOL",
+        "transport": "stdio",
+        "checks": 38,
+        "status": "passed",
+        "integer_oracle": "matched",
+        "future_outcome_and_policy_overrides": "denied",
+        "paper_order_eligible": false
+      },
+      "remote_paper_host": {
+        "asset": "SOL",
+        "transport": "http",
+        "checks": 38,
+        "status": "passed",
+        "integer_oracle": "matched",
+        "future_outcome_and_policy_overrides": "denied",
+        "paper_order_eligible": false
+      },
+      "remote_research_regression": {
+        "asset": "SOL",
+        "transport": "http",
+        "checks": 45,
+        "status": "passed",
+        "packet_hash_matches": true,
+        "future_and_outcome_access": "denied"
+      },
+      "inspector_current_protocol_stdio": "passed",
+      "inspector_current_protocol_http": "passed"
+    }
+  },
+  "invalid_remote_scopes": [
+    {
+      "fixture": "expired",
+      "status": 403,
+      "result": "denied"
+    },
+    {
+      "fixture": "future_availability",
+      "status": 403,
+      "result": "denied"
+    },
+    {
+      "fixture": "outcome_injection",
+      "status": 403,
+      "result": "denied"
+    },
+    {
+      "fixture": "later_phase",
+      "status": 403,
+      "result": "denied"
+    },
+    {
+      "fixture": "advanced_cutoff",
+      "status": 403,
+      "result": "denied"
+    }
+  ],
+  "checks": {
+    "rust_tests": 96,
+    "frontend_tests": 58,
+    "python_tests": 21,
+    "integer_probability_steps": 1001,
+    "mcp_configuration_and_iam": "preserved",
+    "collector_revision_and_configuration": "unchanged",
+    "public_revision": "unchanged",
+    "bucket_iam": "unchanged",
+    "application_schedules": "unchanged",
+    "public_private_routes": "absent"
+  }
+}
