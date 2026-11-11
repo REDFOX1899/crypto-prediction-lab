@@ -249,6 +249,11 @@ fn tools() -> Vec<Tool> {
             json!({"type":"object","properties":{},"additionalProperties":false}),
         ),
         tool(
+            "get_paper_scorecard",
+            "One-contract experimental watch prices from the saved forecast and verified exchange rules. Returns the reason to pass when uncertainty is unsupported.",
+            json!({"type":"object","properties":{},"additionalProperties":false}),
+        ),
+        tool(
             "preview_paper_levels",
             "Conditional fee-aware YES/NO buy ceilings on the assigned opening packet. Assumed fees/ticks and uncalibrated bounds; never an eligible order. Quantity is whole contracts, 1–100.",
             json!({"type":"object","additionalProperties":false,"required":["packet_hash","quantity","forecast"],"properties":{
@@ -352,6 +357,13 @@ impl ServerHandler for ResearchServer {
                 }
                 "get_market_rules" if args.as_object().is_some_and(|o| o.is_empty()) => {
                     Ok(a.scope.rules_response())
+                }
+                "get_paper_scorecard" if args.as_object().is_some_and(|o| o.is_empty()) => {
+                    crate::paper_study::scorecard(
+                        &a.scope.packet,
+                        a.scope.market_rules.as_ref(),
+                        a.scope.forecast_proof.as_ref(),
+                    )
                 }
                 "get_book_depth" => depth(&a.scope, args),
                 "preview_paper_levels" => crate::paper_levels::preview(&a.scope.packet, args),
@@ -769,7 +781,7 @@ mod tests {
             });
             let client = ().serve(client_io).await.unwrap();
             let tools = client.list_tools(None).await.unwrap();
-            assert_eq!(tools.tools.len(), 5);
+            assert_eq!(tools.tools.len(), 6);
             let call = |name: &str, args: Value| {
                 CallToolRequestParams::new(name.to_owned())
                     .with_arguments(args.as_object().unwrap().clone())
@@ -782,6 +794,28 @@ mod tests {
                 rules.structured_content.unwrap()["data"]["status"],
                 "unavailable"
             );
+            let card = client
+                .call_tool(call("get_paper_scorecard", json!({})))
+                .await
+                .unwrap();
+            assert_eq!(
+                card.structured_content.unwrap()["data"]["reason"],
+                "no_committed_fee_rules"
+            );
+            for request in [
+                json!({"asof":"later"}),
+                json!({"result":"yes"}),
+                json!({"bounds":[0.8,1]}),
+            ] {
+                assert_eq!(
+                    client
+                        .call_tool(call("get_paper_scorecard", request))
+                        .await
+                        .unwrap()
+                        .is_error,
+                    Some(true)
+                );
+            }
             let forecast = client
                 .call_tool(call("get_forecast", json!({})))
                 .await

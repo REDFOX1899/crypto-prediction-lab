@@ -43,7 +43,7 @@ let checks = 0;
 try {
   await client.connect(transport);
   const listed = await client.listTools();
-  assert.deepEqual(listed.tools.map(t => t.name).sort(), ['get_book_depth', 'get_cycle_packet', 'get_forecast', 'get_market_rules', 'preview_paper_levels']); checks++;
+  assert.deepEqual(listed.tools.map(t => t.name).sort(), ['get_book_depth', 'get_cycle_packet', 'get_forecast', 'get_market_rules', 'get_paper_scorecard', 'preview_paper_levels']); checks++;
   assert.ok(listed.tools.every(t => t.annotations.readOnlyHint === true && t.inputSchema.additionalProperties === false)); checks++;
   const call = (name, args = {}) => client.callTool({ name, arguments: args });
   const first = await call('get_cycle_packet');

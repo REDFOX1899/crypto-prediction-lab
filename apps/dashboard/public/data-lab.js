@@ -16,6 +16,15 @@ function slots(boards,count,now=Date.now()){
  }
  return Array.from({length:count},(_,i)=>{const at=end-(count-1-i)*STEP;return {at,contracts:Object.fromEntries(ASSETS.map(a=>[a,maps[a].get(at)||null]))}});
 }
+function transitions(rows,asset){
+ const groups={yes:{wins:0,n:0},no:{wins:0,n:0}};
+ for(let i=1;i<rows.length;i++){
+   const previous=rows[i-1],current=rows[i],prior=previous.contracts[asset]?.result,next=current.contracts[asset]?.result;
+   if(current.at-previous.at!==STEP||!['yes','no'].includes(prior)||!['yes','no'].includes(next))continue;
+   groups[prior].n++;groups[prior].wins+=Number(next==='yes');
+ }
+ return groups;
+}
 function summary(rows){
  const perAsset=Object.fromEntries(ASSETS.map(a=>{const found=rows.map(r=>r.contracts[a]).filter(Boolean);return [a,{count:found.length,yes:found.filter(c=>c.result==='yes').length,candles:found.filter(c=>c.candle_count>0).length}]}));
  const joined=rows.filter(r=>ASSETS.every(a=>r.contracts[a]));
@@ -80,7 +89,7 @@ function validBefore(data,contract,minute){
  const start=Date.parse(contract?.open_time)/1000,close=Date.parse(contract?.close_time)/1000;
  return data?.status==='available'&&data.asset===contract.asset&&data.ticker===contract.ticker&&data.minute===minute&&data.cutoff===start+minute*60&&close-start===900&&[0,5,10,14].includes(minute);
 }
-if(typeof module==='object'&&module.exports){module.exports={slots,summary,contextRows,returns,correlation,chart,candleRows,blockworksRows,volumeRatio,validBefore};return}
+if(typeof module==='object'&&module.exports){module.exports={slots,summary,transitions,contextRows,returns,correlation,chart,candleRows,blockworksRows,volumeRatio,validBefore};return}
 const $=id=>document.getElementById(id),pct=(n,d)=>d?`${(n/d*100).toFixed(1)}%`:'—';
 const time=t=>new Date(t).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
 let active=false,generation=0,timer,flight,count=48,boards={},context={},blockworks={},blockworksAsset='BTC',chosen=null,loadedAt=null,candleFlight=null,candleGeneration=0,selectedTicker=null;
@@ -190,6 +199,21 @@ function renderBlockworks(){
  for(const r of rows){const tr=element('tr');tr.append(element('td',time(r.time*1000)));for(const k of ['open','high','low','close','volume'])tr.append(element('td',r.candle&&finite(r.candle[k])?r.candle[k].toLocaleString('en-US',{maximumFractionDigits:8}):'Missing'));table.append(tr)}wrap.append(table);details.append(wrap);host.append(details);
  host.append(element('p',`Volume is per five-minute candle, in ${volumeUnit}. Missing volume is separate from zero. Relative volume requires 13 complete consecutive volume observations. Provider bucket timing and publication delay still need verification before aligning to contract windows. Retrospectively fetched candles are not point-in-time prediction inputs.`,'lab-note'));
 }
+function renderTransitions(rows){
+ const host=$('lab-transitions');host.replaceChildren();
+ for(const asset of ASSETS){
+   const card=element('article'),counts=transitions(rows,asset);
+   card.append(element('h3',asset));
+   for(const side of ['yes','no']){
+     const {wins,n}=counts[side],line=element('div',undefined,'paper-meter');
+     line.append(element('span','After '+side.toUpperCase()),element('strong',pct(wins,n)+' · '+wins+'/'+n));
+     const track=element('div',undefined,'paper-meter-track'),bar=element('i');
+     bar.style.width=(n?100*wins/n:0)+'%';track.append(bar);line.append(track);card.append(line);
+   }
+   const gap=counts.yes.n && counts.no.n ? 100*(counts.yes.wins/counts.yes.n-counts.no.wins/counts.no.n) : null;
+   card.append(element('p',gap===null?'Difference unavailable':('Difference '+(gap>0?'+':'')+gap.toFixed(1)+' percentage points')));host.append(card);
+ }
+}
 function render(){
  const rows=slots(boards,count),stats=summary(rows),points=contextRows(context.history),changes=returns(points),plot=chart(points);
  $('lab-count').textContent=String(stats.total);$('lab-coverage').textContent=pct(stats.total,count*3);$('lab-aligned').textContent=pct(stats.aligned,stats.complete);$('lab-aligned-note').textContent=`${stats.aligned} / ${stats.complete} complete windows · same official direction`;
@@ -211,6 +235,7 @@ function render(){
  const pairs=$('lab-pairs');pairs.replaceChildren();for(const [a,b]of [['BTC','ETH'],['BTC','SOL'],['ETH','SOL']]){const n=correlation(changes,a,b),card=element('article');card.append(element('span',`${a} / ${b}`),element('strong',n===null?'—':n.toFixed(2)),element('small',n===null?'Need 6 variable, synchronized return pairs':`Pearson r · ${changes.length} return pairs`));pairs.append(card)}
  const source=$('lab-sources');source.replaceChildren();for(const a of ASSETS){const s=stats.perAsset[a],at=boards[a]?.fetched_at;source.append(sourceRow(`Kalshi · ${a}`,`${s.count}/${count} official outcomes`,`${s.candles} contracts with minute candles`,at?`Fetched ${time(Date.parse(at))}`:'Archive not configured or unavailable'))}
  source.append(sourceRow('CoinMarketCap',`${points.length} shared samples`,'Aggregate market context',latest?`Sample ${time(latest.t)}`:'No stored samples'),sourceRow('Blockworks',blockworks.status==='available'?`${blockworksRows(blockworks,blockworksAsset).filter(r=>r.candle).length} valid ${blockworksAsset} candles`:'Not connected','Five-minute aggregate OHLCV',blockworks.snapshot?`Retrieved ${time(blockworks.snapshot.captured_at*1000)}`:'No snapshot available'));
+ renderTransitions(rows);
  renderBlockworks();
  $('lab-export').disabled=!loadedAt||(!stats.total&&!points.length);
 }

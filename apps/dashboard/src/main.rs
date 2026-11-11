@@ -15,6 +15,7 @@ mod market_rules;
 mod order_book;
 mod outcomes;
 mod paper_levels;
+mod paper_study;
 mod prospective;
 mod quote_study;
 mod reference;
@@ -630,6 +631,18 @@ async fn collect_history(State(state): State<CollectorState>) -> Response {
         }
     }
 }
+async fn paper_review_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/paper-review.js"),
+    )
+}
+async fn price_map_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/price-map.js"),
+    )
+}
 async fn final_minute_script() -> impl IntoResponse {
     (
         [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
@@ -892,6 +905,9 @@ async fn reference_live(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if std::env::var("DASHBOARD_ROLE").as_deref() == Ok("paper-replay") {
+        return paper_study::cli();
+    }
     if matches!(
         std::env::var("DASHBOARD_ROLE").as_deref(),
         Ok("evaluation-manifest" | "evaluation-replay")
@@ -1026,6 +1042,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/assets/focus.css", get(focus_style))
         .route("/assets/theme.js", get(theme_script))
         .route("/assets/home-visuals.js", get(home_visuals_script))
+        .route("/assets/paper-review.js", get(paper_review_script))
+        .route("/assets/price-map.js", get(price_map_script))
         .route("/assets/final-minute.js", get(final_minute_script))
         .route("/assets/navigation.js", get(navigation_script))
         .route("/assets/quarter-hour-v1.webp", get(homepage_art))

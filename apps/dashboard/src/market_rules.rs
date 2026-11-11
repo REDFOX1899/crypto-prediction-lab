@@ -223,7 +223,7 @@ pub async fn capture(
     }
 }
 
-fn ticks(ranges: &[kalshi_client::PriceRange]) -> Result<Vec<Decimal>, &'static str> {
+pub(crate) fn ticks(ranges: &[kalshi_client::PriceRange]) -> Result<Vec<Decimal>, &'static str> {
     if ranges.is_empty() || ranges.len() > 8 {
         return Err("invalid_tick_ranges");
     }

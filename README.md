@@ -125,3 +125,5 @@ Private agents can also read [verified pre-cutoff exchange fee and tick rules](d
 Private numerical forecasting now compares a regularized logistic/sigmoid challenger with constant, historical-rate and contemporaneous-midpoint baselines. The first small held-out pilot does not beat the pooled midpoint; all forecasts remain experimental and ineligible for orders. See [forecasting and calibration](docs/forecasting-calibration.md).
 
 [Prospective evaluation](docs/prospective-evaluation.md) privately scores saved live forecasts against versioned official results, with coverage gaps, baseline comparisons and immutable GCP reports. Reports are on demand and remain outside the blinded MCP; current evidence does not establish a market edge.
+
+The local research build adds a **YES/NO break-even map** in Single market, historical outcome transitions in Data Lab, and private paper replay with fee-aware watch prices, simulated fills, realized equity and calibration by band. [Score definitions, evidence requirements and operator commands](docs/paper-scorecard.md)

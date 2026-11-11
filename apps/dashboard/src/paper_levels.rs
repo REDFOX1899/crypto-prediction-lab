@@ -68,7 +68,7 @@ fn probability(s: &str) -> Result<Decimal, &'static str> {
 /// Current documented accumulator, with explicit non-direct-member precision.
 /// Buy revenue is negative. All supplied fills are hypothetical modeled fills.
 #[derive(Default)]
-struct Fees {
+pub(crate) struct Fees {
     rounding_accumulator: Decimal,
 }
 impl Fees {
@@ -76,7 +76,7 @@ impl Fees {
         let cost = price * quantity;
         self.apply_model_fee(cost, d(7, 2) * quantity * price * (Decimal::ONE - price))
     }
-    fn apply_model_fee(&mut self, cost: Decimal, model: Decimal) -> Decimal {
+    pub(crate) fn apply_model_fee(&mut self, cost: Decimal, model: Decimal) -> Decimal {
         let trade = ceil(model, 6);
         let rounding = ceil(cost + trade, 2) - cost - trade;
         self.rounding_accumulator += rounding;
