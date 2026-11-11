@@ -2,6 +2,14 @@
 
 Updated: 11 November 2026, America/New_York.
 
+## Ticket J1 — prospective evaluation (release verification in progress)
+
+Application source `a2f308b` adds private on-demand daily and summary evaluation, generation/readTime-pinned extraction, strict saved-forecast validation, coverage/reliability/proper-score diagnostics, immutable replay inputs and versioned result-correction reports. It also fixes archive result-change detection and non-binary invalidation. Core model weights and the blinded MCP remain unchanged. See `prospective-evaluation.md` for the fixed protocol, API, storage and limits.
+
+Experiment `97616a6481c3a6cc1435afb6198770a93874e37f4cd6779169d8247d49fc7a64` was create-only registered and exact-generation verified at 2026-11-11 18:12:19.421 UTC (generation `1794420739411830`) before the confirmatory start 12 November 00:00 UTC. Today is a partial engineering cohort, not an untouched whole-day holdout. No extra access, job, subscription or resource increase has been introduced.
+
+Local checks passed: fmt, locked clippy, 127 Rust tests (122 dashboard/five client), 58 frontend tests and 25 Python tests. Future versions/unavailable objects leave earlier report hashes/scores unchanged; outcome mutations change scores but not saved forecast identity; corrections and voids preserve/exclude the correct versions; missing current results remain missing; source pinning, immutable shard replay, summary support and route validation passed. Deployment/live report validation is in progress and will be recorded here after observation.
+
 ## Original Ticket F — numerical forecasting and calibration verified and deployed
 
 Application source `11079cc80cdc4671e2037fb7fb5798e5f92254d4` on `codex/forecasts-calibration` adds `opening_logistic_sigmoid_v1`: deterministic BTC/ETH/SOL pooled regularized logistic forecasts, later sigmoid calibration, constant/historical-rate/midpoint baselines, chronological split/embargo guards, immutable model artifacts and prospective forecast proofs. GitHub main includes the implementation and subsequent operator-helper/documentation changes. Source CI `43053674777` and main CI `43055151344` passed. No public layout or trading behavior changed. Read `forecasting-calibration.md` for exact mathematics and reproduction.

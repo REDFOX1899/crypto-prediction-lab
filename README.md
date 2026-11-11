@@ -123,3 +123,5 @@ The private MCP also provides [fee-aware conditional paper buy levels](docs/fee-
 Private agents can also read [verified pre-cutoff exchange fee and tick rules](docs/verified-market-rules.md) committed with new BTC/ETH/SOL opening decisions. Older missing rule data stays unavailable, and future-effective changes/outcomes are excluded.
 
 Private numerical forecasting now compares a regularized logistic/sigmoid challenger with constant, historical-rate and contemporaneous-midpoint baselines. The first small held-out pilot does not beat the pooled midpoint; all forecasts remain experimental and ineligible for orders. See [forecasting and calibration](docs/forecasting-calibration.md).
+
+[Prospective evaluation](docs/prospective-evaluation.md) privately scores saved live forecasts against versioned official results, with coverage gaps, baseline comparisons and immutable GCP reports. Reports are on demand and remain outside the blinded MCP; current evidence does not establish a market edge.
