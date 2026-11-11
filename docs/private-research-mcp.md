@@ -16,6 +16,8 @@ The remote server reconstructs the scope through the pure opening projection aga
 
 Fee-aware conditional buy levels are now available through `preview_paper_levels`; [policy, assumptions and live verification](fee-aware-paper-levels.md). Existing packet and scope semantics are retained. Eligible order prices remain disabled because as-of fee/tick rules and calibration are not yet verified.
 
+Prospective exchange fee/tick proofs are now available through `get_market_rules`; [capture and verification contract](verified-market-rules.md). Older decisions remain unavailable for rule evidence. The original book packet and conditional price-policy v1 retain their existing semantics.
+
 ## MCP contract
 
 The official Rust SDK is pinned to `rmcp 3.9.0`. It supports the current `2026-07-28` protocol and compatible earlier versions, including `2025-11-25`. HTTP is stateless Streamable HTTP at `/mcp`, with JSON responses, POST requests and GET 405 (no unsolicited event stream). No session or resumable-event identifiers are accepted. Local stdio uses the same handler and assigned scope, with newline-delimited JSON-RPC and clean stdout. [Official SDK](https://github.com/modelcontextprotocol/rust-sdk), [transport specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports), [current revision](https://modelcontextprotocol.io/docs/2026-07-28/learn/versioning).
@@ -24,10 +26,11 @@ The official Rust SDK is pinned to `rmcp 3.9.0`. It supports the current `2026-0
 | --- | --- | --- |
 | `get_cycle_packet` | Empty object only | Original immutable opening packet, source times/ID, target/rule, two native bid ladders and observed contract midpoint/spread |
 | `get_book_depth` | Exact assigned `packet_hash`, side `YES` or `NO`, decimal-string `quantity` | Opposite-bid-derived ask ladder, covered/uncovered quantity, weighted ask, cost before fees and age at the frozen cutoff |
+| `get_market_rules` | Empty object only | Exact committed exchange fee/tick proof and hash at the original cutoff, or explicit unavailable status |
 | `preview_paper_levels` | Assigned packet hash, whole quantity 1–100, midpoint or explicit hypothetical forecast bounds | Conditional YES/NO ceilings, fee/allowance/depth comparison; no eligible order |
 | `resources/read` | `research://methodology/v1` or `research://paper-policy/v1` | Versioned units, visibility policy, tool schemas and paper assumptions |
 
-All data and methodology responses bind schema, run, asset, ticker, original cutoff and packet hash. Tool failures use a structured `data.error_code`, including `ASOF_DENIED`, `INVALID_QUANTITY` and `CALL_LIMIT`. Unknown routes/methods are absent or rejected. No `get_run_review`, outcome, performance, clock, collection or execution tool is exposed. The earlier Ticket E table is a proposal: packet/depth reads and conditional paper previews are implemented. Verified fee/tick evidence, calibration, prior-performance label availability and a fill ledger remain separate work.
+All data and methodology responses bind schema, run, asset, ticker, original cutoff and packet hash. Tool failures use a structured `data.error_code`, including `ASOF_DENIED`, `INVALID_QUANTITY` and `CALL_LIMIT`. Unknown routes/methods are absent or rejected. No `get_run_review`, outcome, performance, clock, collection or execution tool is exposed. The earlier Ticket E table is a proposal: packet/depth reads and conditional paper previews are implemented. Prospective exchange fee/tick evidence is captured separately; calibration, account fee applicability, prior-performance label availability and a fill ledger remain separate work.
 
 Prices/quantities remain decimal strings. A purchase of YES uses `1 - NO bid`; NO uses `1 - YES bid`. Quantity is greater than zero and at most 10,000, with up to four decimal places. Calculations consume at most ten existing levels and report partial depth honestly. They exclude fees, queue position, slippage, future liquidity and fills. The packet includes the observed contract midpoint; this experiment is not blinded to prices and the midpoint is not a calibrated probability. CF reference history is unavailable here. An observed average never becomes an official settlement result.
 

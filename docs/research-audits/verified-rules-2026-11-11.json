@@ -1,0 +1,206 @@
+{
+  "schema_version": 1,
+  "verification_date_utc": "2026-11-11",
+  "source_commit": "8976220f400e9afe2d7a9325717b737da7f077d0",
+  "collector_revision": "crypto-history-collector-00014-6hz",
+  "mcp_revision": "crypto-research-mcp-00003-lwk",
+  "github_deployment": 7713936128,
+  "automatic_cycle": {
+    "schema_version": 1,
+    "open_time": 1794410100,
+    "assets": [
+      {
+        "asset": "BTC",
+        "status": "verified_asof_cutoff",
+        "source_available_at": "2026-11-11T15:15:10.981774Z",
+        "cutoff": "2026-11-11T15:15:11.110242257Z",
+        "committed_at": "2026-11-11T15:15:11.304Z",
+        "last_rule_receipt_delay_ms": 10951.204905,
+        "source_delay_ms": 10981.774,
+        "commit_delay_ms": 11304.0,
+        "runtime_revision": "crypto-history-collector-00014-6hz",
+        "eligible_later_link": true
+      },
+      {
+        "asset": "ETH",
+        "status": "verified_asof_cutoff",
+        "source_available_at": "2026-11-11T15:15:11.021518Z",
+        "cutoff": "2026-11-11T15:15:11.121842286Z",
+        "committed_at": "2026-11-11T15:15:11.224Z",
+        "last_rule_receipt_delay_ms": 6893.259705,
+        "source_delay_ms": 11021.518,
+        "commit_delay_ms": 11224.0,
+        "runtime_revision": "crypto-history-collector-00014-6hz",
+        "eligible_later_link": true
+      },
+      {
+        "asset": "SOL",
+        "status": "verified_asof_cutoff",
+        "source_available_at": "2026-11-11T15:15:11.061547Z",
+        "cutoff": "2026-11-11T15:15:11.122160665Z",
+        "committed_at": "2026-11-11T15:15:11.230Z",
+        "last_rule_receipt_delay_ms": 6878.62642,
+        "source_delay_ms": 11061.547,
+        "commit_delay_ms": 11230.0,
+        "runtime_revision": "crypto-history-collector-00014-6hz",
+        "eligible_later_link": true
+      }
+    ],
+    "duplicate_preserved_sources_decisions_and_links": true
+  },
+  "assets": {
+    "BTC": {
+      "new_http": {
+        "asset": "BTC",
+        "transport": "http",
+        "expected": "verified",
+        "checks": 34,
+        "status": "passed",
+        "future_outcomes_and_rule_overrides": "denied"
+      },
+      "new_stdio": {
+        "asset": "BTC",
+        "transport": "stdio",
+        "expected": "verified",
+        "checks": 34,
+        "status": "passed",
+        "future_outcomes_and_rule_overrides": "denied"
+      },
+      "legacy_http": {
+        "asset": "BTC",
+        "transport": "http",
+        "expected": "missing",
+        "checks": 16,
+        "status": "passed",
+        "future_outcomes_and_rule_overrides": "denied"
+      },
+      "legacy_stdio": {
+        "asset": "BTC",
+        "transport": "stdio",
+        "expected": "missing",
+        "checks": 16,
+        "status": "passed",
+        "future_outcomes_and_rule_overrides": "denied"
+      },
+      "current_protocol_inspector_http": "passed"
+    },
+    "ETH": {
+      "new_http": {
+        "asset": "ETH",
+        "transport": "http",
+        "expected": "verified",
+        "checks": 34,
+        "status": "passed",
+        "future_outcomes_and_rule_overrides": "denied"
+      },
+      "new_stdio": {
+        "asset": "ETH",
+        "transport": "stdio",
+        "expected": "verified",
+        "checks": 34,
+        "status": "passed",
+        "future_outcomes_and_rule_overrides": "denied"
+      },
+      "legacy_http": {
+        "asset": "ETH",
+        "transport": "http",
+        "expected": "missing",
+        "checks": 16,
+        "status": "passed",
+        "future_outcomes_and_rule_overrides": "denied"
+      },
+      "legacy_stdio": {
+        "asset": "ETH",
+        "transport": "stdio",
+        "expected": "missing",
+        "checks": 16,
+        "status": "passed",
+        "future_outcomes_and_rule_overrides": "denied"
+      },
+      "current_protocol_inspector_http": "passed"
+    },
+    "SOL": {
+      "new_http": {
+        "asset": "SOL",
+        "transport": "http",
+        "expected": "verified",
+        "checks": 34,
+        "status": "passed",
+        "future_outcomes_and_rule_overrides": "denied"
+      },
+      "new_stdio": {
+        "asset": "SOL",
+        "transport": "stdio",
+        "expected": "verified",
+        "checks": 34,
+        "status": "passed",
+        "future_outcomes_and_rule_overrides": "denied"
+      },
+      "legacy_http": {
+        "asset": "SOL",
+        "transport": "http",
+        "expected": "missing",
+        "checks": 16,
+        "status": "passed",
+        "future_outcomes_and_rule_overrides": "denied"
+      },
+      "legacy_stdio": {
+        "asset": "SOL",
+        "transport": "stdio",
+        "expected": "missing",
+        "checks": 16,
+        "status": "passed",
+        "future_outcomes_and_rule_overrides": "denied"
+      },
+      "current_protocol_inspector_http": "passed"
+    }
+  },
+  "invalid_remote_scopes": [
+    {
+      "fixture": "late_rule_receipt",
+      "status": 403,
+      "result": "denied"
+    },
+    {
+      "fixture": "future_change",
+      "status": 403,
+      "result": "denied"
+    },
+    {
+      "fixture": "outcome_injection",
+      "status": 403,
+      "result": "denied"
+    },
+    {
+      "fixture": "derived_fee_tamper",
+      "status": 403,
+      "result": "denied"
+    },
+    {
+      "fixture": "tick_step_tamper",
+      "status": 403,
+      "result": "denied"
+    },
+    {
+      "fixture": "wrong_rule_hash",
+      "status": 403,
+      "result": "denied"
+    },
+    {
+      "fixture": "expired_scope",
+      "status": 403,
+      "result": "denied"
+    }
+  ],
+  "checks": {
+    "rust_tests": 105,
+    "frontend_tests": 58,
+    "python_tests": 21,
+    "service_configuration_and_iam": "preserved",
+    "bucket_iam": "unchanged",
+    "schedules": "unchanged",
+    "public_revision": "unchanged",
+    "public_private_routes": "absent",
+    "anonymous_private_access": "denied"
+  }
+}
