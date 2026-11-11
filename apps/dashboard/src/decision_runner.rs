@@ -105,8 +105,27 @@ impl Store {
 pub struct Runner {
     archive: Arc<Archive>,
     store: Store,
+    forecast_object: Option<String>,
+    forecast_model: tokio::sync::OnceCell<Option<Stored>>,
 }
 impl Runner {
+    /// Preload once before listening. Failed/unconfigured models remain explicitly
+    /// unavailable for this process; collection and the midpoint benchmark continue.
+    pub async fn warm_forecast(&self) {
+        self.forecast_model
+            .get_or_init(|| async {
+                let name = self.forecast_object.as_deref()?;
+                let load = async {
+                    let token = self.archive.token().await.ok()?;
+                    self.store.get(name, &token).await.ok().flatten()
+                };
+                tokio::time::timeout(Duration::from_secs(7), load)
+                    .await
+                    .ok()
+                    .flatten()
+            })
+            .await;
+    }
     /// Operator-only issuance. Reconstruct with the original host cutoff, never now.
     pub async fn issue_mcp_scope(&self, asset: Asset, open: i64) -> Result<Value, Failure> {
         let token = self.archive.token().await?;
@@ -144,6 +163,14 @@ impl Runner {
             }
             scope.set_rules(rules)?;
         }
+        if !value["forecast_proof"].is_null() {
+            if value["forecast_hash"] != decision::hash(&value["forecast_proof"]) {
+                return Err("Forecast integrity failure".into());
+            }
+            let proof: crate::forecast::Frozen =
+                serde_json::from_value(value["forecast_proof"].clone())?;
+            scope.set_forecast(proof)?;
+        }
         let mut random = [0u8; 32];
         getrandom::fill(&mut random).map_err(|_| "Capability generation failed")?;
         use base64::Engine;
@@ -169,8 +196,17 @@ impl Runner {
         if bucket != BUCKET {
             return Err("Invalid app-private decision bucket".into());
         }
+        let forecast_object = std::env::var("FORECAST_MODEL_OBJECT").ok();
+        if forecast_object
+            .as_deref()
+            .is_some_and(|s| !crate::forecast::valid_object(s))
+        {
+            return Err("Invalid forecast model object".into());
+        }
         Ok(Some(Arc::new(Self {
             archive,
+            forecast_object,
+            forecast_model: tokio::sync::OnceCell::new(),
             store: Store {
                 http: reqwest::Client::builder()
                     .timeout(Duration::from_secs(3))
@@ -212,6 +248,31 @@ impl Runner {
                     value["rules_hash"] = Value::Null;
                     value["rules_reason"] = json!(reason);
                 }
+            }
+        }
+        if value["status"] == "forecast" {
+            let forecast = self
+                .forecast_model
+                .get()
+                .and_then(Option::as_ref)
+                .zip(self.forecast_object.as_ref())
+                .ok_or("model_unavailable")
+                .and_then(|(stored, name)| {
+                    crate::forecast::Frozen::new(
+                        stored.value.clone(),
+                        name.clone(),
+                        stored.generation.clone(),
+                        stored.created_at,
+                        &value["packet"],
+                    )
+                });
+            match forecast {
+                Ok(proof) => {
+                    let proof = serde_json::to_value(proof)?;
+                    value["forecast_hash"] = json!(decision::hash(&proof));
+                    value["forecast_proof"] = proof;
+                }
+                Err(reason) => value["forecast_reason"] = json!(reason),
             }
         }
         value["runtime_revision"] =

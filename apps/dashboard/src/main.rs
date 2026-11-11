@@ -8,6 +8,7 @@ mod decision;
 mod decision_runner;
 mod delivery;
 mod final_minute;
+mod forecast;
 mod history;
 mod market_rules;
 mod order_book;
@@ -889,6 +890,9 @@ async fn reference_live(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if std::env::var("DASHBOARD_ROLE").as_deref() == Ok("forecast-fit") {
+        return forecast::fit_cli();
+    }
     if matches!(
         std::env::var("DASHBOARD_ROLE").as_deref(),
         Ok("research-mcp" | "research-mcp-stdio")
@@ -914,6 +918,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let archive = archive.ok_or("Collector requires history configuration")?;
         let runner = decision_runner::Runner::from_env(archive.clone())
             .map_err(|_| "Invalid private runner configuration")?;
+        if let Some(runner) = &runner {
+            runner.warm_forecast().await;
+        }
         let app = Router::new()
             .route("/collect-opening", post(collect_opening))
             .route("/collect-followup", post(collect_followup))

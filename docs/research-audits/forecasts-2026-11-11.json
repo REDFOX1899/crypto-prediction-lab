@@ -1,0 +1,917 @@
+{
+  "calibrate_before": "2026-11-11T11:00:00Z",
+  "calibration": {
+    "cycles": 17,
+    "no": 31,
+    "rows": [
+      17,
+      17,
+      17
+    ],
+    "yes": 20
+  },
+  "decisions": 228,
+  "embargo_seconds": 1800,
+  "evaluation": {
+    "BTC": {
+      "paired_brier_delta_calibrated_minus_midpoint": 0.0025238442421872736,
+      "strategies": {
+        "constant_half": {
+          "brier": 0.25,
+          "log_loss": 0.6931471805599453,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.5,
+              "observed_yes_rate": 0.4444444444444444,
+              "rows": 18,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        },
+        "historical_yes_rate": {
+          "brier": 0.2570529513888889,
+          "log_loss": 0.7086033161541044,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": 0.34375,
+              "observed_yes_rate": 0.4444444444444444,
+              "rows": 18,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        },
+        "logistic_calibrated": {
+          "brier": 0.2566043997977428,
+          "log_loss": 0.7078065534941484,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": 0.34119950459880016,
+              "observed_yes_rate": 0.4375,
+              "rows": 16,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.40541535708947507,
+              "observed_yes_rate": 0.5,
+              "rows": 2,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        },
+        "logistic_raw": {
+          "brier": 0.2561657174590419,
+          "log_loss": 0.706853528796594,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": 0.34010110453809206,
+              "observed_yes_rate": 0.4,
+              "rows": 15,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.4099450654338283,
+              "observed_yes_rate": 0.6666666666666666,
+              "rows": 3,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        },
+        "market_midpoint": {
+          "brier": 0.2540805555555556,
+          "log_loss": 0.7011426044191663,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": 0.365,
+              "observed_yes_rate": 0.0,
+              "rows": 1,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.49966666666666665,
+              "observed_yes_rate": 0.4666666666666667,
+              "rows": 15,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": 0.62,
+              "observed_yes_rate": 0.5,
+              "rows": 2,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        }
+      }
+    },
+    "ETH": {
+      "paired_brier_delta_calibrated_minus_midpoint": -0.0013772791849753867,
+      "strategies": {
+        "constant_half": {
+          "brier": 0.25,
+          "log_loss": 0.6931471805599453,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.5,
+              "observed_yes_rate": 0.5,
+              "rows": 18,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        },
+        "historical_yes_rate": {
+          "brier": 0.2502601456815817,
+          "log_loss": 0.6936677428141507,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.5161290322580643,
+              "observed_yes_rate": 0.5,
+              "rows": 18,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        },
+        "logistic_calibrated": {
+          "brier": 0.25855744303724687,
+          "log_loss": 0.7104468324555057,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": 0.38389855237682713,
+              "observed_yes_rate": 0.5,
+              "rows": 2,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.5067114972028879,
+              "observed_yes_rate": 0.5,
+              "rows": 16,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        },
+        "logistic_raw": {
+          "brier": 0.25965936735390244,
+          "log_loss": 0.7126030508570728,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": 0.39069188096259017,
+              "observed_yes_rate": 0.5,
+              "rows": 2,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.5251754847974832,
+              "observed_yes_rate": 0.5,
+              "rows": 16,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        },
+        "market_midpoint": {
+          "brier": 0.2599347222222222,
+          "log_loss": 0.7129892637524647,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": 0.375,
+              "observed_yes_rate": 0.0,
+              "rows": 1,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.5247058823529412,
+              "observed_yes_rate": 0.5294117647058824,
+              "rows": 17,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        }
+      }
+    },
+    "SOL": {
+      "paired_brier_delta_calibrated_minus_midpoint": 0.01658985979977987,
+      "strategies": {
+        "constant_half": {
+          "brier": 0.25,
+          "log_loss": 0.6931471805599453,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.5,
+              "observed_yes_rate": 0.5555555555555556,
+              "rows": 18,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        },
+        "historical_yes_rate": {
+          "brier": 0.2692057291666667,
+          "log_loss": 0.7321244912471214,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.40625,
+              "observed_yes_rate": 0.5555555555555556,
+              "rows": 18,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        },
+        "logistic_calibrated": {
+          "brier": 0.2519468042442243,
+          "log_loss": 0.6970159656073527,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": 0.3670722209942808,
+              "observed_yes_rate": 0.3333333333333333,
+              "rows": 3,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.46155713140969684,
+              "observed_yes_rate": 0.6,
+              "rows": 15,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        },
+        "logistic_raw": {
+          "brier": 0.24888694346411133,
+          "log_loss": 0.6908355955961373,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": 0.37222536118656224,
+              "observed_yes_rate": 0.3333333333333333,
+              "rows": 3,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.4758638469600774,
+              "observed_yes_rate": 0.6,
+              "rows": 15,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        },
+        "market_midpoint": {
+          "brier": 0.23535694444444447,
+          "log_loss": 0.6628547714978502,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": 0.385,
+              "observed_yes_rate": 0.0,
+              "rows": 1,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.5133333333333333,
+              "observed_yes_rate": 0.5,
+              "rows": 12,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": 0.632,
+              "observed_yes_rate": 0.8,
+              "rows": 5,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 18
+        }
+      }
+    },
+    "pooled": {
+      "paired_brier_delta_calibrated_minus_midpoint": 0.005912141618997251,
+      "strategies": {
+        "constant_half": {
+          "brier": 0.25,
+          "log_loss": 0.6931471805599448,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.5,
+              "observed_yes_rate": 0.5,
+              "rows": 54,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 54
+        },
+        "historical_yes_rate": {
+          "brier": 0.2588396087457124,
+          "log_loss": 0.7114651834051257,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": 0.34375,
+              "observed_yes_rate": 0.4444444444444444,
+              "rows": 18,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.46118951612903214,
+              "observed_yes_rate": 0.5277777777777778,
+              "rows": 36,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 54
+        },
+        "logistic_calibrated": {
+          "brier": 0.255702882359738,
+          "log_loss": 0.7050897838523354,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": 0.3489621829198714,
+              "observed_yes_rate": 0.42857142857142855,
+              "rows": 21,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.48004762547183655,
+              "observed_yes_rate": 0.5454545454545454,
+              "rows": 33,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 54
+        },
+        "logistic_raw": {
+          "brier": 0.2549040094256853,
+          "log_loss": 0.7034307250832676,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": 0.34997882067781244,
+              "observed_yes_rate": 0.4,
+              "rows": 20,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.4932529605135991,
+              "observed_yes_rate": 0.5588235294117647,
+              "rows": 34,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 54
+        },
+        "market_midpoint": {
+          "brier": 0.24979074074074067,
+          "log_loss": 0.6923288798898269,
+          "reliability_bins": [
+            {
+              "lower": 0.0,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 0.2
+            },
+            {
+              "lower": 0.2,
+              "mean_probability": 0.375,
+              "observed_yes_rate": 0.0,
+              "rows": 3,
+              "upper": 0.4
+            },
+            {
+              "lower": 0.4,
+              "mean_probability": 0.5130681818181817,
+              "observed_yes_rate": 0.5,
+              "rows": 44,
+              "upper": 0.6
+            },
+            {
+              "lower": 0.6,
+              "mean_probability": 0.6285714285714287,
+              "observed_yes_rate": 0.7142857142857143,
+              "rows": 7,
+              "upper": 0.8
+            },
+            {
+              "lower": 0.8,
+              "mean_probability": null,
+              "observed_yes_rate": null,
+              "rows": 0,
+              "upper": 1.0
+            }
+          ],
+          "rows": 54
+        }
+      }
+    }
+  },
+  "evaluation_status": "small_chronological_pilot",
+  "excluded": 22,
+  "excluded_from_splits": 12,
+  "expected_completed_asset_windows": 474,
+  "heldout_manifest_hash": "e2fae24fc46d21659f940e8d5706ce1258e8afd7ae1a23628535a9fe23d38063",
+  "joined": 206,
+  "limitations": [
+    "Only two UTC dates; no whole-day independent validation",
+    "Related BTC ETH SOL observations share cycles",
+    "Calibration is a fitted diagnostic, not proven probability accuracy",
+    "No confidence bound, validated market edge, buy recommendation or eligible order",
+    "No CF-relative distance/volatility model: entitled as-of reference features unavailable"
+  ],
+  "model_id": "forecast_models/v1/661dc54e09ee9f3665a5a5863c9de53247aa34e92502009367b514c4737a7bd5.json",
+  "paper_order_eligible": false,
+  "protocol": "opening_logistic_sigmoid_v1",
+  "read_time": "2026-11-11T15:38:42.761976Z",
+  "schema_version": 1,
+  "simulation": "Retrospective hypothetical forecasts, not historically committed decisions or fills",
+  "test": {
+    "cycles": 18,
+    "no": 27,
+    "rows": [
+      18,
+      18,
+      18
+    ],
+    "yes": 27
+  },
+  "train_before": "2026-11-11T06:00:00Z",
+  "training": {
+    "cycles": 31,
+    "no": 52,
+    "rows": [
+      30,
+      29,
+      30
+    ],
+    "yes": 37
+  }
+}

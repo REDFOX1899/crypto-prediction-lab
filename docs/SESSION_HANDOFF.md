@@ -2,6 +2,16 @@
 
 Updated: 11 November 2026, America/New_York.
 
+## Original Ticket F — numerical forecasting and calibration (release verification in progress)
+
+Implemented a private fixed-protocol BTC/ETH/SOL regularized logistic model, later sigmoid calibration, constant/historical-rate/midpoint baselines, chronological split/embargo guards, model artifacts and frozen prospective MCP forecasts. Historical decisions remain unchanged. See `forecasting-calibration.md` and aggregate `research-audits/forecasts-2026-11-11.json` for exact protocol, support, scores and limitations.
+
+Frozen extract: 2026-11-11 15:38:42.761976 UTC, 228 decisions, 206 paired valid packets/official labels. Train/calibration/test rows 89/51/54 across 31/17/18 cycles. Pooled calibrated Brier .255703 versus midpoint .249791: no demonstrated edge. Every response remains experimental, with null probability interval and false paper-order eligibility. No CF data, fills or AI-provider integration is invented.
+
+Model `forecast_models/v1/661dc54e09ee9f3665a5a5863c9de53247aa34e92502009367b514c4737a7bd5.json` was create-only published and generation-read-verified in the existing private bucket at 15:52:37.057 UTC, generation `1794412357049817`. No IAM or limits were changed. Held-out labels/features do not enter model identity. The private batch fitter/exporter and independent Python oracle reproduce the saved artifact and all 20 asset/strategy score pairs; raw extracts stay outside Git.
+
+Local checks passed: fmt, locked clippy, 112 Rust tests (107 dashboard/five client), 58 frontend tests and 23 Python tests. Tests cover future model commits, delayed/corrected fitting label versions, held-out-label invariance, duplicate/wrong identities, injected outcome/future fields, immutable packet equality and MCP scope tampering. Final GitHub/Cloud Build/live-cycle verification is being completed; do not treat this interim paragraph as a production deployment claim.
+
 ## Verified fee/tick capture — completed and deployed
 
 The owner requested actual pre-cutoff fee/tick capture for BTC/ETH/SOL in GCP, private MCP exposure, future-data denial, GitHub publication and deployment. Branch `codex/verified-market-rules` contains application `8976220` and independent timing/duplicate verifier `5a221a9`; GitHub Actions passed both (`43044490229`, `43045738503`). See `verified-market-rules.md` for the exact data and timing contract.

@@ -121,3 +121,5 @@ Trusted agent hosts can read one assigned, cutoff-safe BTC, ETH or SOL opening p
 The private MCP also provides [fee-aware conditional paper buy levels](docs/fee-aware-paper-levels.md), including decimal fee rounding, conservative YES/NO ceilings and frozen-book depth checks. Assumed fee/tick rules and uncalibrated bounds are visible; eligible order prices remain disabled.
 
 Private agents can also read [verified pre-cutoff exchange fee and tick rules](docs/verified-market-rules.md) committed with new BTC/ETH/SOL opening decisions. Older missing rule data stays unavailable, and future-effective changes/outcomes are excluded.
+
+Private numerical forecasting now compares a regularized logistic/sigmoid challenger with constant, historical-rate and contemporaneous-midpoint baselines. The first small held-out pilot does not beat the pooled midpoint; all forecasts remain experimental and ineligible for orders. See [forecasting and calibration](docs/forecasting-calibration.md).

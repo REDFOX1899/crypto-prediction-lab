@@ -128,6 +128,33 @@ pub fn packet(
     )
 }
 
+/// Validate an untrusted serialized opening projection with exact allowlist equality.
+/// No clock, network, label, or later-observation access.
+pub fn validate_projection(p: &Value) -> Result<(), &'static str> {
+    let deny = "invalid_projection";
+    let asset: Asset = serde_json::from_value(p["asset"].clone()).map_err(|_| deny)?;
+    let open = p["open_ts"].as_i64().ok_or(deny)?;
+    let cutoff = time(&p["cutoff"]).map_err(|_| deny)?;
+    if open.rem_euclid(900) != 0 || cutoff.timestamp() < open || cutoff.timestamp() >= open + 40 {
+        return Err(deny);
+    }
+    let row = json!({"schema_version":1,"asset":asset,"phase":"opening","open_time":DateTime::from_timestamp(open,0),
+            "close_time":DateTime::from_timestamp(open+900,0),"intended_at":DateTime::from_timestamp(open,0),
+            "status":"available","request_started_at":p["request_started_at"],"received_at":p["received_at"],
+            "component_times":{"metadata_request_started_at":p["metadata_request_started_at"],"metadata_received_at":p["metadata_received_at"],
+            "book_request_started_at":p["book_request_started_at"],"book_received_at":p["book_received_at"]},
+            "observation":{"ticker":p["ticker"],"open_time":DateTime::from_timestamp(open,0),"close_time":DateTime::from_timestamp(open+900,0),
+            "market_status":"active","target":p["target_usd"],"strike_type":p["comparator"],
+            "yes_bids":p["book"]["yes_dollars"],"no_bids":p["book"]["no_dollars"]}});
+    let doc = json!({"name":p["source_id"],"createTime":p["source_created_at"],"updateTime":p["source_created_at"],
+            "fields":{"payload":{"stringValue":row.to_string()}}});
+    let projected = packet(&doc, asset, open, cutoff, Phase::Opening).map_err(|_| deny)?;
+    if projected != *p {
+        return Err(deny);
+    }
+    Ok(())
+}
+
 pub fn decide(doc: Option<&Value>, asset: Asset, open: i64, cutoff: DateTime<Utc>) -> Value {
     let projected = if cutoff.timestamp() >= open + 40 || cutoff.timestamp() < open {
         Err("decision_deadline")
