@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-11-11T16:19:05.174070Z",
+  "source_commit": "11079cc80cdc4671e2037fb7fb5798e5f92254d4",
+  "build_id": "42023c1f-f83e-4376-8fb0-d2f5872dda30",
+  "image_digest": "sha256:1e07cdb0001082f32cfba89e41e6f26a0cb33c23410dfa2917ee68f3799c5ec0",
+  "model": {
+    "name": "forecast_models/v1/661dc54e09ee9f3665a5a5863c9de53247aa34e92502009367b514c4737a7bd5.json",
+    "generation": "1794412357049817",
+    "timeCreated": "2026-11-11T15:52:37.057Z",
+    "bucket": "crypto-prediction-lab-research-308289525742"
+  },
+  "deployment": {
+    "collector": {
+      "revision": "crypto-history-collector-00015-665",
+      "configuration_iam_and_limits_preserved": true,
+      "traffic_percent": 100
+    },
+    "mcp": {
+      "revision": "crypto-research-mcp-00004-gqq",
+      "configuration_iam_and_limits_preserved": true,
+      "traffic_percent": 100
+    },
+    "public_dashboard_unchanged": true,
+    "bucket_iam_unchanged": true,
+    "scheduler_configuration_unchanged": true
+  },
+  "cycle": {
+    "schema_version": 1,
+    "open_time": 1794413700,
+    "assets": [
+      {
+        "asset": "BTC",
+        "forecast": "committed_and_arithmetic_verified",
+        "model_id": "forecast_models/v1/661dc54e09ee9f3665a5a5863c9de53247aa34e92502009367b514c4737a7bd5.json",
+        "source_available_at": "2026-11-11T16:15:09.329451Z",
+        "cutoff": "2026-11-11T16:15:09.515074375Z",
+        "committed_at": "2026-11-11T16:15:09.654Z",
+        "commit_delay_ms": 9654.0,
+        "runtime_revision": "crypto-history-collector-00015-665",
+        "later_link": "timing_eligible_not_fill"
+      },
+      {
+        "asset": "ETH",
+        "forecast": "committed_and_arithmetic_verified",
+        "model_id": "forecast_models/v1/661dc54e09ee9f3665a5a5863c9de53247aa34e92502009367b514c4737a7bd5.json",
+        "source_available_at": "2026-11-11T16:15:09.403367Z",
+        "cutoff": "2026-11-11T16:15:09.517359728Z",
+        "committed_at": "2026-11-11T16:15:09.646Z",
+        "commit_delay_ms": 9646.0,
+        "runtime_revision": "crypto-history-collector-00015-665",
+        "later_link": "timing_eligible_not_fill"
+      },
+      {
+        "asset": "SOL",
+        "forecast": "committed_and_arithmetic_verified",
+        "model_id": "forecast_models/v1/661dc54e09ee9f3665a5a5863c9de53247aa34e92502009367b514c4737a7bd5.json",
+        "source_available_at": "2026-11-11T16:15:09.457531Z",
+        "cutoff": "2026-11-11T16:15:09.520594464Z",
+        "committed_at": "2026-11-11T16:15:09.645Z",
+        "commit_delay_ms": 9645.0,
+        "runtime_revision": "crypto-history-collector-00015-665",
+        "later_link": "timing_eligible_not_fill"
+      }
+    ],
+    "duplicate_preserved_sources_forecast_values_hashes_and_links": true
+  },
+  "forecast_sdk_checks": [
+    {
+      "asset": "BTC",
+      "transport": "http",
+      "expected": "forecast",
+      "checks": 31,
+      "status": "passed",
+      "future_models_labels_and_overrides": "denied"
+    },
+    {
+      "asset": "ETH",
+      "transport": "http",
+      "expected": "forecast",
+      "checks": 31,
+      "status": "passed",
+      "future_models_labels_and_overrides": "denied"
+    },
+    {
+      "asset": "SOL",
+      "transport": "http",
+      "expected": "forecast",
+      "checks": 31,
+      "status": "passed",
+      "future_models_labels_and_overrides": "denied"
+    },
+    {
+      "asset": "BTC",
+      "transport": "stdio",
+      "expected": "forecast",
+      "checks": 31,
+      "status": "passed",
+      "future_models_labels_and_overrides": "denied"
+    },
+    {
+      "asset": "ETH",
+      "transport": "stdio",
+      "expected": "forecast",
+      "checks": 31,
+      "status": "passed",
+      "future_models_labels_and_overrides": "denied"
+    },
+    {
+      "asset": "SOL",
+      "transport": "stdio",
+      "expected": "forecast",
+      "checks": 31,
+      "status": "passed",
+      "future_models_labels_and_overrides": "denied"
+    }
+  ],
+  "legacy_forecast_checks": {
+    "assets": [
+      "BTC",
+      "ETH",
+      "SOL"
+    ],
+    "transports": [
+      "http",
+      "stdio"
+    ],
+    "checks_per_asset_transport": 18,
+    "result": "NO_FORECAST_COMMITTED_AT_CUTOFF"
+  },
+  "platform_sdk_checks": [
+    {
+      "asset": "BTC",
+      "transport": "http",
+      "checks": 45,
+      "status": "passed",
+      "packet_hash_matches": true,
+      "future_and_outcome_access": "denied"
+    },
+    {
+      "asset": "ETH",
+      "transport": "http",
+      "checks": 45,
+      "status": "passed",
+      "packet_hash_matches": true,
+      "future_and_outcome_access": "denied"
+    },
+    {
+      "asset": "SOL",
+      "transport": "http",
+      "checks": 45,
+      "status": "passed",
+      "packet_hash_matches": true,
+      "future_and_outcome_access": "denied"
+    }
+  ],
+  "denials": {
+    "status": "passed",
+    "cases": [
+      {
+        "case": "late_model_commit",
+        "http_status": 403
+      },
+      {
+        "case": "late_training_label_version",
+        "http_status": 403
+      },
+      {
+        "case": "late_calibration_label_version",
+        "http_status": 403
+      },
+      {
+        "case": "tampered_probability",
+        "http_status": 403
+      },
+      {
+        "case": "injected_current_label",
+        "http_status": 403
+      },
+      {
+        "case": "backfilled_old_packet",
+        "http_status": 403
+      }
+    ],
+    "temporary_generations_removed": true
+  },
+  "access_and_quotes": {
+    "access": {
+      "public_health": 200,
+      "public_mcp_absent": 404,
+      "public_issuer_absent": 404,
+      "public_runner_absent": 404,
+      "private_mcp_anonymous_denied": 403,
+      "private_runner_anonymous_denied": 403
+    },
+    "quotes": {
+      "BTC": {
+        "status": 200,
+        "market_and_book_loaded": true,
+        "fetched_at": "2026-11-11T16:09:09.680966765Z"
+      },
+      "ETH": {
+        "status": 200,
+        "market_and_book_loaded": true,
+        "fetched_at": "2026-11-11T16:09:09.603094285Z"
+      },
+      "SOL": {
+        "status": 200,
+        "market_and_book_loaded": true,
+        "fetched_at": "2026-11-11T16:09:09.748048046Z"
+      }
+    }
+  },
+  "checks": {
+    "rust": 112,
+    "frontend": 58,
+    "python": 23,
+    "fmt": "passed",
+    "clippy_locked_warnings_denied": "passed",
+    "independent_arithmetic_score_pairs": 20,
+    "real_heldout_label_mutation": "model_unchanged_scores_changed"
+  },
+  "github_deployment_id": 7715128411,
+  "source_ci": "https://github.com/REDFOX1899/crypto-prediction-lab/actions/runs/43053674777",
+  "main_ci": "https://github.com/REDFOX1899/crypto-prediction-lab/actions/runs/43055151344",
+  "paper_order_eligible": false,
+  "limitation": "Two-date retrospective pilot does not beat pooled midpoint; prospective cycle proves operation, not accuracy or profit"
+}
