@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "verification_date_utc": "2026-11-11",
+  "source_commit": "acdcaf9dd6c9aefbec573630a94141afaca962d4",
+  "collector_revision": "crypto-history-collector-00013-2nv",
+  "mcp_revision": "crypto-research-mcp-00001-nhq",
+  "github_deployment": 7701380357,
+  "assets": {
+    "BTC": {
+      "stdio_host": {
+        "asset": "BTC",
+        "transport": "stdio",
+        "checks": 34,
+        "status": "passed",
+        "packet_hash_matches": true,
+        "future_and_outcome_access": "denied"
+      },
+      "remote_host": {
+        "asset": "BTC",
+        "transport": "http",
+        "checks": 45,
+        "status": "passed",
+        "packet_hash_matches": true,
+        "future_and_outcome_access": "denied"
+      },
+      "inspector_current_protocol_stdio": "passed",
+      "inspector_current_protocol_http": "passed"
+    },
+    "ETH": {
+      "stdio_host": {
+        "asset": "ETH",
+        "transport": "stdio",
+        "checks": 34,
+        "status": "passed",
+        "packet_hash_matches": true,
+        "future_and_outcome_access": "denied"
+      },
+      "remote_host": {
+        "asset": "ETH",
+        "transport": "http",
+        "checks": 45,
+        "status": "passed",
+        "packet_hash_matches": true,
+        "future_and_outcome_access": "denied"
+      },
+      "inspector_current_protocol_stdio": "passed",
+      "inspector_current_protocol_http": "passed"
+    },
+    "SOL": {
+      "stdio_host": {
+        "asset": "SOL",
+        "transport": "stdio",
+        "checks": 34,
+        "status": "passed",
+        "packet_hash_matches": true,
+        "future_and_outcome_access": "denied"
+      },
+      "remote_host": {
+        "asset": "SOL",
+        "transport": "http",
+        "checks": 45,
+        "status": "passed",
+        "packet_hash_matches": true,
+        "future_and_outcome_access": "denied"
+      },
+      "inspector_current_protocol_stdio": "passed",
+      "inspector_current_protocol_http": "passed"
+    }
+  },
+  "invalid_remote_scopes": [
+    {
+      "fixture": "expired",
+      "status": 403,
+      "result": "denied"
+    },
+    {
+      "fixture": "future_availability",
+      "status": 403,
+      "result": "denied"
+    },
+    {
+      "fixture": "outcome_injection",
+      "status": 403,
+      "result": "denied"
+    },
+    {
+      "fixture": "later_phase",
+      "status": 403,
+      "result": "denied"
+    },
+    {
+      "fixture": "advanced_cutoff",
+      "status": 403,
+      "result": "denied"
+    }
+  ],
+  "postdeploy_automatic_cycle": {
+    "open_time_utc": "2026-11-11T04:00:00Z",
+    "timely_decisions": 3,
+    "eligible_later_links": 3
+  },
+  "checks": {
+    "rust_tests": 88,
+    "frontend_tests": 58,
+    "python_tests": 21,
+    "public_private_routes": "absent",
+    "anonymous_mcp_access": "denied",
+    "existing_collector_configuration": "preserved",
+    "existing_application_schedules": "preserved",
+    "project_iam": "unchanged",
+    "bucket_grant": "MCP prefix reader only"
+  }
+}

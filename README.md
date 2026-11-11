@@ -113,3 +113,7 @@ For a second local preview server: `DASHBOARD_PORT=3001 cargo run -p dashboard`.
 The deployed public pilot uses shared two-second browser polling; local mode supports SSE. Reference and market connections remain server-side. A separate private scheduled collector writes settled-contract history. Deployment scripts refer to dedicated Secret Manager resources and contain no private key material. See [deployment](docs/public-deployment.md), [production pilot](docs/production-pilot.md) and [combo semantics](docs/combo-lab.md).
 
 The current live feed buffers are bounded in memory. The archive is not a complete tick/order-book capture, and the observed final-minute average is not an official settlement result. Existing hosting limits and budget alerts reduce cost without guaranteeing an absolute monthly bill cap.
+
+## Private research MCP
+
+Trusted agent hosts can read one assigned, cutoff-safe BTC, ETH or SOL opening packet and calculate costs from its frozen order-book depth. The private service uses Cloud Run IAM plus a short-lived capability, with local stdio support. Outcomes, later snapshots, scope overrides and writes are excluded. [MCP contract, host setup and verified deployment](docs/private-research-mcp.md). No automatic model calls or trading are enabled.
