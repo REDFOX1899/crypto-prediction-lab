@@ -13,6 +13,8 @@ pub enum Error {
     Request(#[from] reqwest::Error),
     #[error("Kalshi returned a repeated pagination cursor")]
     RepeatedCursor,
+    #[error("Rule metadata exceeds the response limit")]
+    RuleResponseLimit,
 }
 
 #[derive(Debug, Deserialize)]
@@ -45,6 +47,21 @@ pub struct Market {
     pub yes_sub_title: Option<String>,
     pub floor_strike: Option<Decimal>,
     pub strike_type: Option<String>,
+    pub event_ticker: Option<String>,
+    pub market_type: Option<String>,
+    pub notional_value_dollars: Option<Decimal>,
+    pub price_level_structure: Option<String>,
+    #[serde(default)]
+    pub price_ranges: Vec<PriceRange>,
+    pub fee_waiver_expiration_time: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct PriceRange {
+    pub start: Decimal,
+    pub end: Decimal,
+    pub step: Decimal,
 }
 
 #[derive(Debug, Deserialize)]
@@ -104,6 +121,46 @@ impl Client {
         Ok(response.series)
     }
 
+    async fn bounded_rules(
+        &self,
+        path: &str,
+        query: &[(&str, &str)],
+    ) -> Result<serde_json::Value, Error> {
+        let mut response = self
+            .http
+            .get(format!("{}{path}", self.base_url))
+            .header("Cache-Control", "no-cache")
+            .query(query)
+            .send()
+            .await?
+            .error_for_status()?;
+        let mut bytes = Vec::new();
+        while let Some(chunk) = response.chunk().await? {
+            if bytes.len() + chunk.len() > 16_384 {
+                return Err(Error::RuleResponseLimit);
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        // Bodies stay private; the caller allowlists fields before persistence.
+        serde_json::from_slice(&bytes).map_err(|_| Error::RuleResponseLimit)
+    }
+    pub async fn series_rules(&self, series: &str) -> Result<serde_json::Value, Error> {
+        self.bounded_rules(&format!("/series/{series}"), &[]).await
+    }
+    pub async fn series_fee_changes(&self, series: &str) -> Result<serde_json::Value, Error> {
+        self.bounded_rules(
+            "/series/fee_changes",
+            &[("series_ticker", series), ("show_historical", "true")],
+        )
+        .await
+    }
+    pub async fn event_fee_changes(&self, event: &str) -> Result<serde_json::Value, Error> {
+        self.bounded_rules(
+            "/events/fee_changes",
+            &[("event_ticker", event), ("limit", "100")],
+        )
+        .await
+    }
     pub async fn exchange_status(&self) -> Result<ExchangeStatus, Error> {
         Ok(self
             .http

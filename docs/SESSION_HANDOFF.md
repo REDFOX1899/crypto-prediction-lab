@@ -2,6 +2,10 @@
 
 Updated: 11 November 2026, America/New_York.
 
+## Verified fee/tick capture — implementation prepared
+
+The owner requested prospective pre-cutoff fee/tick capture in GCP, private MCP exposure, no future leaks, GitHub publication and deployment. Branch `codex/verified-market-rules` adds bounded public rule reads inside opening snapshots, immutable commitment of the pure rule projection, and private `get_market_rules`. Old book hashes and legacy scopes remain compatible; missing historical rules stay unavailable. Full local checks pass; production and independent-host checks are pending. See `verified-market-rules.md`.
+
 ## Requested Ticket F — fee-aware paper levels verified and deployed
 
 The owner requested fee-aware paper buy levels on cutoff-safe BTC/ETH/SOL packets, GitHub publication and deployment. Application commit `c781813` on `codex/fee-aware-paper-levels` implements pure `paper_buy_levels_v1`, private MCP `preview_paper_levels`, versioned `research://paper-policy/v1`, an independent SDK-host verifier and an image-only deploy script. The dated research plan calls this price-policy slice G; forecast fitting (its original F) is not implemented by this release. See `fee-aware-paper-levels.md` for the assumptions and math.

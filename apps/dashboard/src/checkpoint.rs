@@ -179,13 +179,18 @@ pub async fn capture_cycle(
             if ready && Utc::now().timestamp() < open + phase.deadline() {
                 let market = market.expect("ready metadata");
                 times["book_request_started_at"] = json!(Utc::now());
-                let book = tokio::time::timeout(
-                    std::time::Duration::from_secs(2),
-                    client.order_book(&market.ticker),
-                )
-                .await;
+                let book_work = async {
+                    let result = tokio::time::timeout(
+                        std::time::Duration::from_secs(2),
+                        client.order_book(&market.ticker),
+                    )
+                    .await;
+                    let received = Utc::now();
+                    (result, received)
+                };
+                let (book, book_received) = book_work.await;
                 if book.is_ok() {
-                    times["book_received_at"] = json!(Utc::now());
+                    times["book_received_at"] = json!(book_received);
                 }
                 match book {
                     Ok(Ok(book)) => {
@@ -196,11 +201,46 @@ pub async fn capture_cycle(
                         };
                         match crate::order_book::research_view(snapshot) {
                             Ok(_) => {
+                                // At most one rule fetch per available opening asset.
+                                // Reserve time to preserve a usable book when rule sources are slow.
+                                let rules = if phase == Phase::Opening {
+                                    let rules_started = Utc::now();
+                                    let remaining = (started.timestamp_millis() + budget_ms
+                                        - rules_started.timestamp_millis()
+                                        - 50)
+                                        .clamp(0, 2000);
+                                    let work = crate::market_rules::capture(
+                                        client,
+                                        asset,
+                                        &market,
+                                        crate::decision::time(
+                                            &times["metadata_request_started_at"],
+                                        )
+                                        .expect("metadata start"),
+                                        crate::decision::time(&times["metadata_received_at"])
+                                            .expect("metadata receipt"),
+                                    );
+                                    Some(
+                                        match tokio::time::timeout(
+                                            std::time::Duration::from_millis(remaining as u64),
+                                            work,
+                                        )
+                                        .await
+                                        {
+                                            Ok(value) => value,
+                                            Err(_) => {
+                                                json!({"schema_version":1,"status":"unavailable","reason":"rules_deadline","request_started_at":rules_started,"received_at":Utc::now()})
+                                            }
+                                        },
+                                    )
+                                } else {
+                                    None
+                                };
                                 observation = Some(
                                     json!({"ticker":market.ticker,"market_status":market.status,
                                 "open_time":market.open_time,"close_time":market.close_time,
                                 "target":market.floor_strike,"target_text":market.yes_sub_title,"strike_type":market.strike_type,
-                                "yes_bids":book.yes_dollars,"no_bids":book.no_dollars}),
+                                "yes_bids":book.yes_dollars,"no_bids":book.no_dollars,"event_ticker":market.event_ticker,"market_rules":rules}),
                                 )
                             }
                             Err(reason) => last_error = reason,
@@ -301,7 +341,9 @@ mod cycle_tests {
         let open = Utc::now().timestamp() - 5;
         let market = json!({"ticker":"KXBTC15M-TEST","title":"Test","status":"active",
             "open_time":DateTime::from_timestamp(open,0),"close_time":DateTime::from_timestamp(open+900,0),
-            "floor_strike":"100","strike_type":"greater_or_equal"});
+            "floor_strike":"100","strike_type":"greater_or_equal",
+            "event_ticker":"KXBTC15M-EVENT","market_type":"binary","notional_value_dollars":"1",
+            "price_level_structure":"linear_cent","price_ranges":[{"start":"0","end":"1","step":"0.01"}]});
         Mock::given(method("GET"))
             .and(path("/markets"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({"markets":[]})))
@@ -331,6 +373,24 @@ mod cycle_tests {
             .expect(1)
             .mount(&server)
             .await;
+        for (route, body) in [
+            (
+                "/series/KXBTC15M",
+                json!({"series":{"ticker":"KXBTC15M","fee_type":"quadratic","fee_multiplier":1}}),
+            ),
+            ("/series/fee_changes", json!({"series_fee_change_arr":[]})),
+            (
+                "/events/fee_changes",
+                json!({"event_fee_changes":[],"cursor":""}),
+            ),
+        ] {
+            Mock::given(method("GET"))
+                .and(path(route))
+                .respond_with(ResponseTemplate::new(200).set_body_json(body))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
         let client = Client::with_base_url(&server.uri()).unwrap();
         let value = capture_cycle(&client, Asset::Btc, open, Phase::Opening, None).await;
         assert_eq!(value["status"], "available");
@@ -342,6 +402,15 @@ mod cycle_tests {
             2
         );
         assert_eq!(value["observation"]["ticker"], "KXBTC15M-TEST");
+        assert_eq!(value["observation"]["market_rules"]["status"], "available");
+        let created = Utc::now();
+        let document = json!({"name":format!("projects/gitunderstand/databases/crypto-prediction-lab/documents/{}",Phase::Opening.path(Asset::Btc,open)),"createTime":created,"updateTime":created,"fields":{"payload":{"stringValue":value.to_string()}}});
+        let packet =
+            crate::decision::packet(&document, Asset::Btc, open, created, Phase::Opening).unwrap();
+        assert_eq!(
+            crate::market_rules::project(&document, &packet).unwrap()["status"],
+            "verified_asof_cutoff"
+        );
         assert!(value["decision_id"].is_null());
         let times = &value["component_times"];
         let ordered = [
@@ -357,6 +426,55 @@ mod cycle_tests {
             .map(|v| DateTime::parse_from_rfc3339(v.as_str().unwrap()).unwrap())
             .collect();
         assert!(parsed.windows(2).all(|w| w[0] <= w[1]));
+    }
+
+    #[tokio::test]
+    async fn slow_rules_do_not_discard_a_usable_opening_book() {
+        let server = MockServer::start().await;
+        let open = Utc::now().timestamp() - 5;
+        let market = json!({"ticker":"KXBTC15M-TEST","title":"Test","status":"active","open_time":DateTime::from_timestamp(open,0),"close_time":DateTime::from_timestamp(open+900,0),
+            "floor_strike":"100","strike_type":"greater_or_equal","event_ticker":"KXBTC15M-EVENT","market_type":"binary","notional_value_dollars":"1","price_level_structure":"linear_cent","price_ranges":[{"start":"0","end":"1","step":"0.01"}]});
+        Mock::given(method("GET"))
+            .and(path("/markets/KXBTC15M-TEST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"market":market})))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/markets/KXBTC15M-TEST/orderbook"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                json!({"orderbook_fp":{"yes_dollars":[["0.4","12"]],"no_dollars":[["0.55","7"]]}}),
+            ))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/series/KXBTC15M"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_delay(std::time::Duration::from_secs(10))
+                    .set_body_json(json!({"series":{}})),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = Client::with_base_url(&server.uri()).unwrap();
+        let row = capture_cycle(
+            &client,
+            Asset::Btc,
+            open,
+            Phase::Opening,
+            Some("KXBTC15M-TEST"),
+        )
+        .await;
+        assert_eq!(row["status"], "available");
+        assert_eq!(row["observation"]["market_rules"]["status"], "unavailable");
+        assert!(
+            !row["observation"]["yes_bids"]
+                .as_array()
+                .unwrap()
+                .is_empty()
+        );
     }
 
     #[tokio::test]

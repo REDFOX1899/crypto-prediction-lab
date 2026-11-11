@@ -9,6 +9,7 @@ mod decision_runner;
 mod delivery;
 mod final_minute;
 mod history;
+mod market_rules;
 mod order_book;
 mod outcomes;
 mod paper_levels;

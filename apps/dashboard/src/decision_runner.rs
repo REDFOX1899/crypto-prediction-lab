@@ -136,7 +136,14 @@ impl Runner {
             return Err("Packet integrity failure".into());
         }
         let now = Utc::now();
-        let scope = crate::research_mcp::Scope::new(packet, now)?;
+        let mut scope = crate::research_mcp::Scope::new(packet.clone(), now)?;
+        if !value["market_rules"].is_null() {
+            let rules = crate::market_rules::project(&doc, &packet)?;
+            if value["market_rules"] != rules || value["rules_hash"] != decision::hash(&rules) {
+                return Err("Rule integrity failure".into());
+            }
+            scope.set_rules(rules)?;
+        }
         let mut random = [0u8; 32];
         getrandom::fill(&mut random).map_err(|_| "Capability generation failed")?;
         use base64::Engine;
@@ -191,6 +198,22 @@ impl Runner {
         // The pure strategy gets only its allowlisted projection. It cannot
         // access the archive, execution candidate, outcomes, or external tools.
         let mut value = decision::decide(doc.as_ref(), asset, open, cutoff);
+        if value["status"] == "forecast" {
+            match crate::market_rules::project(
+                doc.as_ref().expect("forecast source"),
+                &value["packet"],
+            ) {
+                Ok(rules) => {
+                    value["rules_hash"] = json!(decision::hash(&rules));
+                    value["market_rules"] = rules;
+                }
+                Err(reason) => {
+                    value["market_rules"] = Value::Null;
+                    value["rules_hash"] = Value::Null;
+                    value["rules_reason"] = json!(reason);
+                }
+            }
+        }
         value["runtime_revision"] =
             json!(std::env::var("K_REVISION").unwrap_or_else(|_| "local".into()));
         Ok(Self::summary(
