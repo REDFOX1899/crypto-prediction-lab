@@ -61,6 +61,14 @@ python3 scripts/verify_forecast_fit.py /private/tmp/new-frozen-extract.json /pri
 python3 scripts/publish_forecast_model.py /private/tmp/new-fit --receipt /private/tmp/new-publication.json
 ```
 
+After verifying a fitted experiment, preserve its exact private dataset and report in GCP as well:
+
+```sh
+python3 scripts/archive_forecast_experiment.py /private/tmp/new-frozen-extract.json /private/tmp/new-fit --model-receipt /private/tmp/new-publication.json --output /private/tmp/new-experiment-receipt.json
+```
+
+This writes content-addressed, generation-verified create-only objects under `forecast_datasets/v1/`, `forecast_evaluations/v1/` and `forecast_experiments/v1/` in the existing private research bucket. The experiment manifest links dataset, evaluation and exact model generation without putting held-out labels or their hash into the model. The frozen dataset can be retrieved by the operator for exact reproduction even after mutable Firestore labels change. These prefixes are outside the MCP identity's scope-only grant and never loaded by the live runner. The first normalized dataset is 538,035 bytes; no new store, recurring work or public data exposure is added.
+
 Export/output files are private and refuse overwrite. The publisher verifies hash and exact returned generation, uses `ifGenerationMatch=0`, and never updates IAM. Re-extracting later mutable label versions can legitimately reduce past fitting support; use the original frozen extract for exact reproduction. A new protocol/model version needs a separately frozen experiment, not tuning on these 54 held-out observations.
 
 Deployment and actual live checks are recorded in `SESSION_HANDOFF.md`. Next: accumulate multiple untouched UTC days and prospective forecasts, then freeze a whole-day walk-forward evaluation and uncertainty method. Reference challengers, agent comparisons, a verified-fee paper policy and the paper fill ledger remain separate work. No result here authorizes real trading.
