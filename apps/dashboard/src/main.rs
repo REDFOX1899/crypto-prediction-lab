@@ -14,6 +14,7 @@ mod outcomes;
 mod quote_study;
 mod reference;
 mod research;
+mod research_mcp;
 mod stream;
 
 use assets::{Asset, Selection};
@@ -341,6 +342,31 @@ async fn review_decision(
     {
         Ok(Ok(v)) => ([(header::CACHE_CONTROL, "no-store")], Json(v)).into_response(),
         _ => (StatusCode::BAD_GATEWAY, "Private review unavailable").into_response(),
+    }
+}
+
+async fn issue_mcp_scope(
+    State(state): State<CollectorState>,
+    Json(q): Json<ReviewRequest>,
+) -> Response {
+    if !valid_research_window(q.open_time) {
+        return (StatusCode::BAD_REQUEST, "Invalid research window").into_response();
+    }
+    let Some(runner) = state.runner else {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Private runner unavailable",
+        )
+            .into_response();
+    };
+    match tokio::time::timeout(
+        std::time::Duration::from_secs(12),
+        runner.issue_mcp_scope(q.asset, q.open_time),
+    )
+    .await
+    {
+        Ok(Ok(v)) => ([(header::CACHE_CONTROL, "no-store")], Json(v)).into_response(),
+        _ => (StatusCode::CONFLICT, "No eligible frozen packet").into_response(),
     }
 }
 
@@ -861,6 +887,12 @@ async fn reference_live(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if matches!(
+        std::env::var("DASHBOARD_ROLE").as_deref(),
+        Ok("research-mcp" | "research-mcp-stdio")
+    ) {
+        return research_mcp::run().await.map_err(|e| e.to_string().into());
+    }
     if std::env::var("DASHBOARD_ROLE").as_deref() == Ok("blockworks-pilot") {
         return blockworks::pilot().await.map_err(|e| e.to_string().into());
     }
@@ -885,6 +917,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .route("/collect-followup", post(collect_followup))
             .route("/run-decisions", post(run_decisions))
             .route("/research/decision", get(review_decision))
+            .route("/research/mcp-scope", post(issue_mcp_scope))
             .route("/collect", post(collect_history))
             .route("/collect-context", post(collect_context))
             .route("/collect-minute-ten", post(collect_minute_ten))

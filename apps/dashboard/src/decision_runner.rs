@@ -11,10 +11,10 @@ pub struct Stored {
     pub created_at: DateTime<Utc>,
     pub generation: String,
 }
-struct Store {
-    http: reqwest::Client,
-    base: String,
-    bucket: String,
+pub(crate) struct Store {
+    pub(crate) http: reqwest::Client,
+    pub(crate) base: String,
+    pub(crate) bucket: String,
 }
 impl Store {
     fn url(&self, name: &str) -> Result<reqwest::Url, Failure> {
@@ -36,7 +36,7 @@ impl Store {
         }
         Ok(serde_json::from_slice(&bytes)?)
     }
-    async fn get(&self, name: &str, token: &str) -> Result<Option<Stored>, Failure> {
+    pub(crate) async fn get(&self, name: &str, token: &str) -> Result<Option<Stored>, Failure> {
         let url = self.url(name)?;
         let response = self.http.get(url.clone()).bearer_auth(token).send().await?;
         if response.status() == reqwest::StatusCode::NOT_FOUND {
@@ -107,6 +107,54 @@ pub struct Runner {
     store: Store,
 }
 impl Runner {
+    /// Operator-only issuance. Reconstruct with the original host cutoff, never now.
+    pub async fn issue_mcp_scope(&self, asset: Asset, open: i64) -> Result<Value, Failure> {
+        let token = self.archive.token().await?;
+        let stored = self
+            .store
+            .get(&Self::name("decisions", asset, open), &token)
+            .await?
+            .ok_or("No committed decision")?;
+        let value = &stored.value;
+        let cutoff = decision::time(&value["cutoff"])?;
+        if value["status"] != "forecast"
+            || value["run_id"] != decision::run_id(asset, open)
+            || stored.created_at.timestamp() >= open + 40
+            || cutoff > stored.created_at
+            || cutoff.timestamp() < open
+            || cutoff.timestamp() >= open + 40
+        {
+            return Err("No timely forecast packet".into());
+        }
+        let doc = self
+            .archive
+            .cycle_document(asset, open, Phase::Opening)
+            .await?
+            .ok_or("Missing opening")?;
+        let packet = decision::packet(&doc, asset, open, cutoff, Phase::Opening)?;
+        if value["packet"] != packet || value["packet_hash"] != decision::hash(&packet) {
+            return Err("Packet integrity failure".into());
+        }
+        let now = Utc::now();
+        let scope = crate::research_mcp::Scope::new(packet, now)?;
+        let mut random = [0u8; 32];
+        getrandom::fill(&mut random).map_err(|_| "Capability generation failed")?;
+        use base64::Engine;
+        let capability = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(random);
+        let name = crate::research_mcp::scope_name(&capability).ok_or("Invalid capability")?;
+        let saved = self
+            .store
+            .create(&name, &serde_json::to_value(&scope)?, &token)
+            .await?;
+        if saved.value != serde_json::to_value(&scope)? {
+            return Err("Scope collision".into());
+        }
+        Ok(
+            json!({"capability":capability,"expires_at":scope.expires_at,
+            "run_id":scope.run_id,"asset":asset,"cutoff":cutoff,"packet_hash":scope.packet_hash,
+            "scope":scope,"transport":"private Streamable HTTP; X-Research-Capability header plus Cloud Run IAM"}),
+        )
+    }
     pub fn from_env(archive: Arc<Archive>) -> Result<Option<Arc<Self>>, Failure> {
         let Ok(bucket) = std::env::var("DECISION_BUCKET") else {
             return Ok(None);

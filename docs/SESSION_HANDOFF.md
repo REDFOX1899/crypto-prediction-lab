@@ -154,3 +154,7 @@ The owner requested a price/volume history pilot plus “Before this outcome” 
 - Temporary reports: `/private/tmp/crypto-before-candidate-checks.json`, `/private/tmp/crypto-before-live-checks.json`; each records 39 passing checks. Service/IAM snapshots and build metadata are also under `/private/tmp/crypto-before-*` and are not committed.
 - Next: check the actual Blockworks credit charge before another fetch. Any recurring collection, expanded retention or model use requires its own concrete decision. No redeployment is needed for documentation-only updates.
 - The owner’s explicit GitHub publication approval has been applied. Future documentation-only changes do not require redeploying the application. An earlier local preview at port 3005 may still show the old one-day-only configuration; use the public URL for this completed release.
+
+## Ticket E — implementation prepared
+
+Branch `codex/private-research-mcp` adds the private frozen research MCP adapter and trusted collector scope issuer. Local Rust checks pass (88 tests including six MCP suites), frontend tests pass (58), and existing Python tests pass (21). The official Rust client consumes the assigned fixture, both transports are tested, and adversarial asset/time/phase/resource/write requests fail. Deployment and independent Inspector/TypeScript-host checks are pending. See `private-research-mcp.md` for the exact identity, scope, transport and cost design. No recurring model inference is enabled.
