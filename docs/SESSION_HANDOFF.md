@@ -2,6 +2,16 @@
 
 Updated: 11 November 2026, America/New_York.
 
+## Scorecards and paper replay — published and verified live
+
+Application commit `ea7bea4` is on GitHub main. Cloud Build `431f48bb-9a26-4683-a57b-ebbc0abcf41f` succeeded and produced image digest `sha256:9bb72de8e0db1e1fdde2f5bf96c517c49989848a6363dcb5af921762ecf4b1d8`. Public revision `crypto-prediction-lab-00021-rh7` serves 100% of traffic; the revision number is lower than the previous one and its verified image digest identifies this release. The image deployment initially retained traffic on the old pinned revision. An explicit traffic update completed the release. Private MCP `crypto-research-mcp-00005-n75` serves the same image. The collector remains `crypto-history-collector-00016-j4q`. All three runtime configurations, service IAM and resource/scaling settings were compared with saved pre-release settings.
+
+Production browser verified populated YES/NO quotes and independent break-even margin arithmetic on BTC, ETH and SOL. Each archived market replay loaded all 15 minute candles and revealed the official outcome at minute 15. The deployed Data Lab loaded the operator's 27-row private report locally, with nine rows per asset. Decision and +55-second views hid official results; review showed the result and calibration. Desktop 1280px and mobile 390px checks passed in both themes with no JavaScript errors or horizontal overflow. Workspace exit cleared the private file. Private JSON is still selected by the operator; raw reports are not publicly hosted. Scorecards explicitly suppress expired or stale books until fresh data arrives.
+
+Actual deployed official-SDK MCP calls passed 14 checks per asset, including fee-rule availability, repeated deterministic scorecards, null order eligibility, and denied future/outcome/bound/write requests. Public assets and `/api/health` returned 200. Private evaluation/MCP routes stayed absent on the public service; unauthenticated private MCP returned 403. An initial health probe used `/health` and returned 404; the configured `/api/health` passed. GitHub CI `43089841572` passed all 220 tests. GitHub production deployment `7720119957` records success and the exact image/revisions. Aggregate evidence is `research-audits/scorecard-release-2026-11-11.json`. Detailed operator evidence stays under `/private/tmp/scorecard-*`.
+
+This supersedes the local-only release status below. Economic experiment registration, new report archives/schedules, validated probability bounds and demo execution were not activated by this publication.
+
 ## Paper pricing, ledger, economic comparison and visual scorecards — local build
 
 Branch `codex/paper-research-scorecard` implements verified-rule point-estimate pricing and private MCP `get_paper_scorecard`, bounded one-contract economic replay from original decision generations and real later books, five independent virtual strategies, coverage/timing reports, optional immutable GCS archival/registration, a 30-day paired economic comparison, and Single market / Data Lab scorecards. The new public visuals consume existing read-only feeds. The private report picker is local to the operator's browser. [Formulas, pricing assumptions, usage and limitations](paper-scorecard.md).

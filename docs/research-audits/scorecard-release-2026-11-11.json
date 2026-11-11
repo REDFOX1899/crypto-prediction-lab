@@ -1,0 +1,38 @@
+{
+  "source_commit": "ea7bea4e322fe2f735b12c8bb8ef45b685793c84",
+  "cloud_build": "431f48bb-9a26-4683-a57b-ebbc0abcf41f",
+  "image": "sha256:9bb72de8e0db1e1fdde2f5bf96c517c49989848a6363dcb5af921762ecf4b1d8",
+  "public_revision": "crypto-prediction-lab-00021-rh7",
+  "mcp_revision": "crypto-research-mcp-00005-n75",
+  "github_deployment": 7720119957,
+  "github_ci": 43089841572,
+  "assets": {
+    "BTC": {
+      "live_quotes": true,
+      "break_even_arithmetic": true,
+      "archived_replay_minutes": 15,
+      "paper_replay_rows": 9,
+      "paper_outcome_reveal_verified": true,
+      "mcp_checks": 14
+    },
+    "ETH": {
+      "live_quotes": true,
+      "break_even_arithmetic": true,
+      "archived_replay_minutes": 15,
+      "paper_replay_rows": 9,
+      "paper_outcome_reveal_verified": true,
+      "mcp_checks": 14
+    },
+    "SOL": {
+      "live_quotes": true,
+      "break_even_arithmetic": true,
+      "archived_replay_minutes": 15,
+      "paper_replay_rows": 9,
+      "paper_outcome_reveal_verified": true,
+      "mcp_checks": 14
+    }
+  },
+  "private_report_mode": "operator-selected local JSON; no public report download",
+  "layout_checks": 8,
+  "iam_and_resource_comparison": "passed"
+}
