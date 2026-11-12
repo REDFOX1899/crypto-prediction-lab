@@ -216,6 +216,7 @@ function renderTransitions(rows){
 }
 function render(){
  const rows=slots(boards,count),stats=summary(rows),points=contextRows(context.history),changes=returns(points),plot=chart(points);
+ root.TechnicalChart?.update(context.history||[]);
  $('lab-count').textContent=String(stats.total);$('lab-coverage').textContent=pct(stats.total,count*3);$('lab-aligned').textContent=pct(stats.aligned,stats.complete);$('lab-aligned-note').textContent=`${stats.aligned} / ${stats.complete} complete windows · same official direction`;
  $('lab-samples').textContent=String(points.length);$('lab-samples-note').textContent=`${changes.length} synchronized return pairs · CMC observations`;
  $('lab-status').textContent=loadedAt?`Last refresh ${time(loadedAt)} · ${count} completed slots · times in your timezone`:'Loading recorded observations…';
@@ -254,7 +255,7 @@ async function refresh(g){
   if(results.some(r=>r.status==='rejected'))$('lab-status').textContent+=' · some sources unavailable';
  }finally{clearTimeout(deadline);if(flight===f)flight=null;if(active&&g===generation){$('lab-refresh').disabled=false;timer=setTimeout(()=>refresh(g),document.hidden?300000:60000)}}
 }
-function leave(){cancelBefore();active=false;generation++;clearTimeout(timer);flight?.controller.abort();flight=null;cancelCandles()}
+function leave(){root.ForecastStudy?.leave();cancelBefore();active=false;generation++;clearTimeout(timer);flight?.controller.abort();flight=null;cancelCandles()}
 for(const b of document.querySelectorAll('[data-lab-window]'))b.addEventListener('click',()=>{count=Number(b.dataset.labWindow);chosen=null;for(const p of document.querySelectorAll('[data-lab-window]'))p.setAttribute('aria-pressed',String(p===b));render()});
 for(const b of document.querySelectorAll('[data-blockworks-asset]'))b.addEventListener('click',()=>{blockworksAsset=b.dataset.blockworksAsset;render()});
 for(const b of document.querySelectorAll('[data-before-asset]'))b.addEventListener('click',()=>{beforeAsset=b.dataset.beforeAsset;beforeControls();loadBefore()});
@@ -262,5 +263,5 @@ for(const b of document.querySelectorAll('[data-before-minute]'))b.addEventListe
 $('lab-refresh').addEventListener('click',()=>{clearTimeout(timer);beforeCache.clear();if(beforeRow)loadBefore();refresh(generation)});
 $('lab-export').addEventListener('click',()=>{const value={schema_version:1,exported_at:new Date().toISOString(),window_count:count,notes:'Official archived outcomes and CMC observations. Missing slots remain null. Not a training-ready point-in-time dataset. No Blockworks data.',windows:slots(boards,count),context};const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));const link=element('a');link.href=url;link.download=`crypto-data-lab-${new Date().toISOString().slice(0,10)}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)});
 document.addEventListener('visibilitychange',()=>{if(active&&!document.hidden&&!flight){clearTimeout(timer);refresh(generation)}});
-root.DataLab={enter(){leave();active=true;render();refresh(generation);if(beforeRow)loadBefore()},leave};
+root.DataLab={enter(){leave();root.ForecastStudy?.enter();active=true;render();refresh(generation);if(beforeRow)loadBefore()},leave};
 })(typeof window!=='undefined'?window:globalThis);

@@ -270,16 +270,42 @@ impl Frozen {
 // The label-bearing types below never cross into live inference or MCP tools.
 #[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct DecisionRow {
+pub(crate) struct DecisionRow {
     object_name: String,
-    generation: String,
+    pub(crate) generation: String,
     committed_at: DateTime<Utc>,
-    run_id: String,
-    asset: Asset,
-    open_ts: i64,
-    status: String,
-    packet: Value,
-    packet_hash: Option<String>,
+    pub(crate) run_id: String,
+    pub(crate) asset: Asset,
+    pub(crate) open_ts: i64,
+    pub(crate) status: String,
+    pub(crate) packet: Value,
+    pub(crate) packet_hash: Option<String>,
+}
+impl DecisionRow {
+    pub(crate) fn check_identity(
+        &self,
+        start_ts: i64,
+        end_ts: i64,
+        read_time: DateTime<Utc>,
+    ) -> Result<(), &'static str> {
+        let cutoff = decision::time(&self.packet["cutoff"])?;
+        if self.open_ts < start_ts
+            || self.open_ts >= end_ts
+            || self.committed_at > read_time
+            || self.committed_at < cutoff
+            || self.committed_at.timestamp() >= self.open_ts + 40
+            || self.run_id != decision::run_id(self.asset, self.open_ts)
+            || self.object_name != format!("decisions/v1/{}.json", self.run_id)
+            || self.generation.is_empty()
+            || !self.generation.bytes().all(|b| b.is_ascii_digit())
+            || self.packet["asset"] != serde_json::to_value(self.asset).unwrap()
+            || self.packet["open_ts"] != self.open_ts
+            || self.packet_hash.as_deref() != Some(decision::hash(&self.packet).as_str())
+        {
+            return Err("invalid_decision");
+        }
+        Ok(())
+    }
 }
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -395,22 +421,7 @@ fn joined(data: &Dataset) -> Result<(Vec<Row>, usize), &'static str> {
         }
         let check = || -> Result<Row, &'static str> {
             let x = features(&d.packet)?;
-            let cutoff = decision::time(&d.packet["cutoff"])?;
-            if d.open_ts < data.start_ts
-                || d.open_ts >= data.end_ts
-                || d.committed_at > data.read_time
-                || d.committed_at < cutoff
-                || d.committed_at.timestamp() >= d.open_ts + 40
-                || d.run_id != decision::run_id(d.asset, d.open_ts)
-                || d.object_name != format!("decisions/v1/{}.json", d.run_id)
-                || d.generation.is_empty()
-                || !d.generation.bytes().all(|b| b.is_ascii_digit())
-                || d.packet["asset"] != serde_json::to_value(d.asset).unwrap()
-                || d.packet["open_ts"] != d.open_ts
-                || d.packet_hash.as_deref() != Some(decision::hash(&d.packet).as_str())
-            {
-                return Err("invalid_decision");
-            }
+            d.check_identity(data.start_ts, data.end_ts, data.read_time)?;
             let l = labels
                 .get(&(d.open_ts, asset_index(d.asset)))
                 .ok_or("missing_label")?;

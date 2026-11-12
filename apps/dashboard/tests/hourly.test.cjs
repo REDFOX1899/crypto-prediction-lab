@@ -10,3 +10,9 @@ test('default strike balances two available asks and handles an empty listing', 
   assert.equal(nearest(rows), rows[1]);
   assert.equal(nearest([]), undefined);
 });
+test('binary YES range derives bid from NO ask and rejects crossed or absent quotes', () => {
+  const range=(yes,no)=>require('../public/hourly.js').bidAsk({yes_ask_dollars:yes,no_ask_dollars:no});
+  assert.deepEqual(range('.5325','.4800'),{bid:52,ask:53.25});
+  assert.equal(range('.40','.50'),null);
+  assert.equal(range('.40',null),null);
+});

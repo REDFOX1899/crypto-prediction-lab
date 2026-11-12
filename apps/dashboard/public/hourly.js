@@ -13,14 +13,43 @@
     };
     return markets.reduce((best, m) => distance(m) < distance(best) ? m : best, markets[0]);
   }
-  if (typeof module === 'object' && module.exports) { module.exports = {cents, nearest}; return; }
+  function bidAsk(strike) {
+    const ask = cents(strike.yes_ask_dollars), no = cents(strike.no_ask_dollars);
+    if (ask === null || no === null) return null;
+    const bid = Math.round((100 - no) * 100) / 100;
+    return bid <= ask ? {bid, ask} : null;
+  }
+  function drawRanges(card, strikes) {
+    const figure = card.querySelector('.range-chart'), plot = figure.querySelector('svg');
+    plot.replaceChildren();
+    const descriptions = [];
+    const line = (x1,y1,x2,y2,kind) => {
+      const node = document.createElementNS('http://www.w3.org/2000/svg','line');
+      for (const [key,value] of Object.entries({x1,y1,x2,y2,class:kind})) node.setAttribute(key,value);
+      plot.append(node);
+    };
+    for (const y of [8,48,88]) line(8,y,222,y,'range-grid');
+    strikes.forEach((strike,index) => {
+      const pair = bidAsk(strike);
+      if (!pair) return;
+      const x = 17 + index*49, top = 88-pair.ask*.8, bottom = 88-pair.bid*.8;
+      line(x,top,x,bottom,'range-stem');
+      line(x-5,top,x+5,top,'range-ask');
+      line(x-5,bottom,x+5,bottom,'range-bid');
+      descriptions.push(strike.yes_sub_title + ' · bid ' + pair.bid + '¢ / ask ' + pair.ask + '¢');
+    });
+    figure.querySelector('small').textContent = descriptions.length ? 'Low → high strike · '+descriptions.length+'/'+strikes.length+' two-sided quotes' : 'No current two-sided quotes';
+    figure.querySelector('output').textContent = descriptions.join(' • ');
+    plot.setAttribute('aria-label',descriptions.join('. ') || 'Two-sided quotes unavailable');
+  }
+  if (typeof module === 'object' && module.exports) { module.exports = {cents, nearest, bidAsk}; return; }
   const byId = id => document.getElementById(id);
   const cards = new Map();
   let controller, timer, hourly = false;
   function buildCard(asset, name) {
     const card = document.createElement('article');
     card.className = 'home-market-card hour-card';
-    card.innerHTML = '<div class="home-market-heading"><span class="home-coin"></span><h3></h3></div><p class="hour-status"></p><label>Settlement threshold<select></select></label><div class="home-asks"><div><span>▲ YES ask</span><strong>—</strong></div><div><span>▼ NO ask</span><strong>—</strong></div></div><figure class="strike-chart"><figcaption>YES asks across nearby strikes</figcaption><div></div></figure><details class="tape-detail"><summary>Test my probability</summary><label>My chance of YES (%)<input type="number" min="0" max="100" step="any" placeholder="0–100"></label><p class="hour-result" aria-live="polite"></p></details>';
+    card.innerHTML = '<div class="home-market-heading"><span class="home-coin"></span><h3></h3></div><p class="hour-status"></p><label>Settlement threshold<select></select></label><div class="home-asks"><div><span>▲ YES ask</span><strong>—</strong></div><div><span>▼ NO ask</span><strong>—</strong></div></div><figure class="strike-chart"><figcaption>YES asks across nearby strikes</figcaption><div></div></figure><figure class="range-chart"><figcaption>YES bid–ask range</figcaption><div><span>100¢<br>50¢<br>0¢</span><svg viewBox="0 0 232 96" role="img"></svg></div><small></small><details><summary>Read prices</summary><output></output></details></figure><details class="tape-detail"><summary>Test my probability</summary><label>My chance of YES (%)<input type="number" min="0" max="100" step="any" placeholder="0–100"></label><p class="hour-result" aria-live="polite"></p></details>';
     const coin = card.querySelector('.home-coin');
     coin.classList.add(asset.toLowerCase());
     coin.textContent = {BTC:'₿', ETH:'Ξ', SOL:'◎'}[asset];
@@ -48,7 +77,9 @@
       chart.dataset.key = chartKey;
       chart.replaceChildren();
       const from = Math.max(0, Math.min(markets.length - 5, select.selectedIndex - 2));
-      for (const strike of fresh ? markets.slice(from, from + 5) : []) {
+      const nearby = fresh ? markets.slice(from, from + 5) : [];
+      drawRanges(card, nearby);
+      for (const strike of nearby) {
         const price = cents(strike.yes_ask_dollars);
         const row = document.createElement('button');
         row.type = 'button';

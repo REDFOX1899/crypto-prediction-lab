@@ -10,6 +10,7 @@ mod delivery;
 mod evaluation_runner;
 mod final_minute;
 mod forecast;
+mod gemini_research;
 mod history;
 mod hourly;
 mod market_rules;
@@ -113,6 +114,34 @@ async fn quote_study(State(state): State<AppState>) -> Response {
         )
             .into_response(),
     }
+}
+
+async fn quote_tape_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/quote-tape.js"),
+    )
+}
+
+async fn technical_chart_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/technical-chart.js"),
+    )
+}
+
+async fn forecast_study_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/forecast-study.js"),
+    )
+}
+
+async fn forecast_pilot_data() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "application/json")],
+        include_str!("../public/forecast-pilot-v1.json"),
+    )
 }
 
 async fn hourly_script() -> impl IntoResponse {
@@ -912,6 +941,9 @@ async fn reference_live(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if std::env::var("DASHBOARD_ROLE").as_deref() == Ok("gemini-rehearsal") {
+        return gemini_research::cli();
+    }
     if std::env::var("DASHBOARD_ROLE").as_deref() == Ok("paper-replay") {
         return paper_study::cli();
     }
@@ -1046,6 +1078,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/combos/quote", get(combo_quote))
         .route("/api/feeds", get(feeds))
         .route("/assets/feed-client.js", get(feed_script))
+        .route("/assets/technical-chart.js", get(technical_chart_script))
+        .route("/assets/quote-tape.js", get(quote_tape_script))
+        .route("/assets/forecast-study.js", get(forecast_study_script))
+        .route("/assets/forecast-pilot-v1.json", get(forecast_pilot_data))
         .route("/assets/hourly.js", get(hourly_script))
         .route("/assets/homepage.js", get(homepage_script))
         .route("/assets/focus.css", get(focus_style))

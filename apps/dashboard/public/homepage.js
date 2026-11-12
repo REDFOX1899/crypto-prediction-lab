@@ -31,11 +31,11 @@ function cardState(m,snapshot,live,received,now){
  const matched=live?.ticker===m.ticker&&['live','subscribed'].includes(live.state)&&Number.isFinite(received)&&now-received<=8000;
  if(matched&&live.book&&age(live.book_received_at)<=15000){
   const book=topBook(live.book),yesBid=price(book.yes_dollars[0]?.[0]),noBid=price(book.no_dollars[0]?.[0]);
-  return {mode:'live',yes:noBid===null?null:1-noBid,no:yesBid===null?null:1-yesBid,depth:depthShare(book),depthLive:true,spread:spread(yesBid,noBid===null?null:1-noBid),age:age(live.book_received_at)};
+  return {mode:'live',sampleAt:live.book_received_at,yes:noBid===null?null:1-noBid,no:yesBid===null?null:1-yesBid,depth:depthShare(book),depthLive:true,spread:spread(yesBid,noBid===null?null:1-noBid),age:age(live.book_received_at)};
  }
  const depth=age(snapshot?.fetched_at)<=45000?depthShare(topBook(snapshot?.order_book)):null;
- if(matched&&live.state==='live'&&age(live.received_at)<=15000)return {mode:'live',yes:price(live.yes_ask),no:price(live.yes_bid)===null?null:1-Number(live.yes_bid),depth,depthLive:false,spread:spread(live.yes_bid,live.yes_ask),age:age(live.received_at)};
- return {mode:'snapshot',yes:price(m.yes_ask_dollars),no:price(m.no_ask_dollars),depth,depthLive:false,spread:spread(m.yes_bid_dollars,m.yes_ask_dollars),age:age(snapshot?.fetched_at)};
+ if(matched&&live.state==='live'&&age(live.received_at)<=15000)return {mode:'live',sampleAt:live.received_at,yes:price(live.yes_ask),no:price(live.yes_bid)===null?null:1-Number(live.yes_bid),depth,depthLive:false,spread:spread(live.yes_bid,live.yes_ask),age:age(live.received_at)};
+ return {mode:'snapshot',sampleAt:snapshot?.fetched_at,yes:price(m.yes_ask_dollars),no:price(m.no_ask_dollars),depth,depthLive:false,spread:spread(m.yes_bid_dollars,m.yes_ask_dollars),age:age(snapshot?.fetched_at)};
 }
 if(typeof module==='object'&&module.exports){module.exports={windowClose,recentOutcomes,depthShare,cardState};return}
 const $=id=>document.getElementById(id),symbols=['BTC','ETH','SOL'];let active=false,generation=0,timer,historyTimer,clockTimer,markets={},snapshots={},archived={},errors={},live={},received={},feeds=[],snapshotFlight=null,historyFlight=null,refs={},refReceived={},trails={},anchor=null;
@@ -71,6 +71,7 @@ function quote(id,value){const node=$(id),next=cents(value),previous=node.datase
 function render(a,now){
  referenceRender(a,now);
  const m=markets[a],state=cardState(m,snapshots[a],live[a],received[a],now),closed=m&&now>=Date.parse(m.close_time);
+ root.LiveQuoteTape?.record(a,m,state,now);
  text(`home-spread-${a}`,cents(state.spread));
  for(const [side,value] of [['yes',state.yes],['no',state.no]]) $(`home-${side}-${a}`).parentElement.style.setProperty('--quote',`${(value??0)*100}%`);
  quote(`home-yes-${a}`,state.yes);quote(`home-no-${a}`,state.no);
@@ -91,10 +92,16 @@ function clock(){
  $('home-dial-progress').setAttribute('stroke-dasharray',`${close&&fresh?Math.max(0,Math.min(100,(1-(close-now)/900000)*100)):0} 100`);
  text('home-dial-label',close&&fresh?(close-now<=60000?'FINAL MINUTE':`Final minute in ${mmss(Math.ceil((close-now-60000)/1000))}`):'Waiting for current markets');
  const modes=symbols.map(a=>render(a,now)),anyLive=modes.includes('live');
+ root.LiveQuoteTape?.draw(now);
  text('home-refresh-note',document.hidden?'Background updates slowed':anyLive?(root.DASHBOARD_POLLING?'Live quotes · updates every 2s':'Live streamed quotes'):modes.includes('snapshot')?'Snapshot fallback · live feed unavailable':'Connecting to shared live feed');
 }
 function history(){for(const a of symbols){
  const host=$(`home-history-${a}`),slots=recentOutcomes((archived[a]||[]).filter(c=>c.asset===a),nowMs()),key=JSON.stringify(slots);if(host.dataset.slots===key)continue;host.dataset.slots=key;
+ const yes=slots.filter(slot=>slot.result==='yes').length,no=slots.filter(slot=>slot.result==='no').length;
+ const track=$(`mix-track-${a}`);
+ track.style.setProperty('--yes-end',100*yes/slots.length+'%');
+ track.style.setProperty('--known-end',100*(yes+no)/slots.length+'%');
+ text(`mix-label-${a}`,`${yes} YES · ${no} NO · ${slots.length-yes-no} missing`);
  host.replaceChildren();for(const slot of slots){const cell=document.createElement('span');cell.className=`home-outcome ${slot.result||'missing'}`;cell.textContent=slot.result==='yes'?'▲':slot.result==='no'?'▼':'·';cell.title=`${new Date(slot.close).toLocaleString()} · ${slot.result==='yes'?'YES / at or above target':slot.result==='no'?'NO / below target':'not archived'}`;cell.setAttribute('aria-label',cell.title);host.append(cell)}
 }}
 function nextRefresh(){
@@ -137,7 +144,7 @@ function connect(g){for(const a of symbols){
  reference.onerror=()=>{if(!active||g!==generation)return;delete refs[a];referenceRender(a,nowMs())};
 }}
 
-function leave(){root.HourlyTape?.leave();root.QuoteStudy?.leave();root.MarketContext?.leave();active=false;generation++;clearTimeout(timer);clearTimeout(historyTimer);clearInterval(clockTimer);feeds.forEach(f=>f.close());feeds=[];snapshotFlight?.controller.abort();historyFlight?.controller.abort();snapshotFlight=null;historyFlight=null}
+function leave(){root.LiveQuoteTape?.clear();root.HourlyTape?.leave();root.QuoteStudy?.leave();root.MarketContext?.leave();active=false;generation++;clearTimeout(timer);clearTimeout(historyTimer);clearInterval(clockTimer);feeds.forEach(f=>f.close());feeds=[];snapshotFlight?.controller.abort();historyFlight?.controller.abort();snapshotFlight=null;historyFlight=null}
 root.HomePage={enter(){leave();active=true;markets={};snapshots={};archived={};errors={};live={};received={};refs={};refReceived={};trails={};anchor=null;for(const a of symbols){text(`home-target-${a}`,'—');delete $(`home-yes-${a}`).dataset.price;delete $(`home-no-${a}`).dataset.price;text(`home-window-${a}`,'Finding the current market…')}const g=generation;root.QuoteStudy?.enter();root.MarketContext?.enter();clock();history();connect(g);refresh(g);loadHistory(g);clockTimer=setInterval(clock,1000)},leave};
 document.addEventListener('visibilitychange',()=>{if(active&&!document.hidden){refresh(generation);if(!historyFlight){clearTimeout(historyTimer);loadHistory(generation)}}});
 })(typeof window!=='undefined'?window:globalThis);
