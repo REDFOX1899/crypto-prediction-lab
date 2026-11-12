@@ -2,6 +2,10 @@
 
 Updated: 11 November 2026, America/New_York.
 
+## Owner attribution and GitHub publication
+
+User explicitly authorized pushing the deployed release to REDFOX1899/crypto-prediction-lab. Main now includes application commit `f6773fb`, adding Shantanu Patil in the Home footer with portfolio and LinkedIn links. All 73 frontend tests and diff checks passed. Build `0f5af3b1-854c-4691-9d03-a5537ca6fa82` succeeded. Latest public revision `crypto-prediction-lab-00025-2tr` serves 100% traffic. Both custom domains returned the name and both exact links over HTTPS. This supersedes the earlier blocked GitHub push. Next step remains prospective forecast evaluation.
+
 ## Yes No Tape visual research and liquidity release · 20:45 Eastern
 
 Public revision `crypto-prediction-lab-00042-jar` serves 100% of dashboard traffic. Cloud Build `ea21f8e1-fb5f-491e-82c4-1653e9941aab` succeeded, digest `sha256:d96dd58510077ed848abe312283c46be836871f33bcf74ba711286ed6ad47b03`. Application commit `fdaf488` on local branch `codex/yes-no-tape-hourly`. Automatic approval review denied uploading the source to GitHub. Both custom hostnames passed HTTPS and all 18 combined HTTP/read-only checks. Identity, resource limits, concurrency, timeout, environment, mounts and scaling match the initial public revision.
