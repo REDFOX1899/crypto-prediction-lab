@@ -83,7 +83,7 @@ def main():
         raise SystemExit('Evaluation HTTP %s; capture windows reserve the collector (retry later if 503). No inputs printed.' % error.code)
     destination.mkdir(mode=0o700,parents=True)
     private_write(destination/'envelope.json',value)
-    if args.download_input:
+    if args.download_input and 'report' in value:
         access = subprocess.check_output(['gcloud','auth','print-access-token'],text=True).strip()
         data,rows,manifest = download_input(value,access)
         private_write(destination/'input.json',data)

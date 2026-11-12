@@ -18,3 +18,13 @@ test('empty bins cannot acquire outcomes and the support must reconcile', () => 
   stats.reliability_bins[0].observed_yes_rate = null; stats.rows++;
   assert.equal(validate(copy),false);
 });
+test('prospective snapshot reconciles common scored rows and missing forecasts', () => {
+  assert.ok(validate(report.prospective));
+  for (const cohort of Object.values(report.prospective.evaluation)) {
+    const copy = structuredClone(report.prospective);
+    copy.evaluation.pooled.scored = copy.evaluation.pooled.expected + 1;
+    assert.equal(validate(copy), false);
+    assert.equal(cohort.scored + cohort.unscored, cohort.expected);
+    assert.equal(cohort.strategies.market_midpoint.rows, cohort.strategies.logistic_calibrated.rows);
+  }
+});
