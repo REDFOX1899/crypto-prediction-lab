@@ -6,6 +6,11 @@
     const n = Number(value);
     return n > 0 && n < 1 ? Math.round(n * 10000) / 100 : null;
   }
+  function quantity(value) {
+    if (typeof value !== 'string' || !/^\d+(?:\.\d+)?$/.test(value)) return null;
+    const n = Number(value);
+    return Number.isFinite(n) && n <= Number.MAX_SAFE_INTEGER ? n : null;
+  }
   function nearest(markets) {
     const distance = m => {
       const yes = cents(m.yes_ask_dollars), no = cents(m.no_ask_dollars);
@@ -15,8 +20,10 @@
   }
   function bidAsk(strike) {
     const ask = cents(strike.yes_ask_dollars), no = cents(strike.no_ask_dollars);
-    if (ask === null || no === null) return null;
-    const bid = Math.round((100 - no) * 100) / 100;
+    if (ask === null) return null;
+    const implied = no === null ? null : Math.round((100 - no) * 100) / 100;
+    const bid = strike.yes_bid_dollars == null ? implied : cents(strike.yes_bid_dollars);
+    if (bid === null) return null;
     return bid <= ask ? {bid, ask} : null;
   }
   function drawRanges(card, strikes) {
@@ -42,14 +49,14 @@
     figure.querySelector('output').textContent = descriptions.join(' • ');
     plot.setAttribute('aria-label',descriptions.join('. ') || 'Two-sided quotes unavailable');
   }
-  if (typeof module === 'object' && module.exports) { module.exports = {cents, nearest, bidAsk}; return; }
+  if (typeof module === 'object' && module.exports) { module.exports = {cents, nearest, bidAsk, quantity}; return; }
   const byId = id => document.getElementById(id);
   const cards = new Map();
   let controller, timer, hourly = false;
   function buildCard(asset, name) {
     const card = document.createElement('article');
     card.className = 'home-market-card hour-card';
-    card.innerHTML = '<div class="home-market-heading"><span class="home-coin"></span><h3></h3></div><p class="hour-status"></p><label>Settlement threshold<select></select></label><div class="home-asks"><div><span>▲ YES ask</span><strong>—</strong></div><div><span>▼ NO ask</span><strong>—</strong></div></div><figure class="strike-chart"><figcaption>YES asks across nearby strikes</figcaption><div></div></figure><figure class="range-chart"><figcaption>YES bid–ask range</figcaption><div><span>100¢<br>50¢<br>0¢</span><svg viewBox="0 0 232 96" role="img"></svg></div><small></small><details><summary>Read prices</summary><output></output></details></figure><details class="tape-detail"><summary>Test my probability</summary><label>My chance of YES (%)<input type="number" min="0" max="100" step="any" placeholder="0–100"></label><p class="hour-result" aria-live="polite"></p></details>';
+    card.innerHTML = '<div class="home-market-heading"><span class="home-coin"></span><h3></h3></div><p class="hour-status"></p><label>Settlement threshold<select></select></label><div class="home-asks"><div><span>▲ YES ask</span><strong>—</strong></div><div><span>▼ NO ask</span><strong>—</strong></div></div><figure class="strike-chart"><figcaption>YES asks across nearby strikes</figcaption><div></div></figure><figure class="range-chart"><figcaption>YES bid–ask range</figcaption><div><span>100¢<br>50¢<br>0¢</span><svg viewBox="0 0 232 96" role="img"></svg></div><small></small><details><summary>Read prices</summary><output></output></details></figure><details class="hour-liquidity"><summary>Liquidity at this strike</summary><div class="hour-sizes"><span></span></div><div class="hour-quantities"></div><small>Displayed size can change before execution.</small></details><details class="tape-detail"><summary>Test my probability</summary><label>My chance of YES (%)<input type="number" min="0" max="100" step="any" placeholder="0–100"></label><p class="hour-result" aria-live="polite"></p></details>';
     const coin = card.querySelector('.home-coin');
     coin.classList.add(asset.toLowerCase());
     coin.textContent = {BTC:'₿', ETH:'Ξ', SOL:'◎'}[asset];
@@ -79,6 +86,20 @@
       const from = Math.max(0, Math.min(markets.length - 5, select.selectedIndex - 2));
       const nearby = fresh ? markets.slice(from, from + 5) : [];
       drawRanges(card, nearby);
+      const quote = fresh && bidAsk(m);
+      const bids = quote ? quantity(m.yes_bid_size_fp) : null, asks = quote ? quantity(m.yes_ask_size_fp) : null;
+      const track = card.querySelector('.hour-sizes');
+      track.hidden = bids === null || asks === null || bids + asks === 0;
+      if (!track.hidden) track.style.setProperty('--bids', (100*bids/(bids+asks))+'%');
+      const quantities = card.querySelector('.hour-quantities');
+      quantities.replaceChildren();
+      for (const [label,value] of [['At best YES bid',bids],['At best YES ask',asks],
+          ['Contract volume',fresh ? quantity(m.volume_fp) : null],['Open interest',fresh ? quantity(m.open_interest_fp) : null]]) {
+        const line = document.createElement('div'), name = document.createElement('span'), total = document.createElement('b');
+        name.textContent = label;
+        total.textContent = value===null?'—':value.toLocaleString(undefined,{maximumFractionDigits:2})+' contracts';
+        line.append(name,total);quantities.append(line);
+      }
       for (const strike of nearby) {
         const price = cents(strike.yes_ask_dollars);
         const row = document.createElement('button');

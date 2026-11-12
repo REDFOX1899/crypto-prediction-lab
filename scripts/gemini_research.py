@@ -91,15 +91,15 @@ def prepare(board, asset, mode):
             raise ValueError('Foreign or invalid contract identity')
         if m.get('status') != 'active' or m.get('strike_type') != 'greater' or timestamp(m['close_time']).timestamp()!=close:
             raise ValueError('Mixed market rules or close')
-        floor, yes, no = map(decimal, (m.get('floor_strike'), m.get('yes_ask_dollars'), m.get('no_ask_dollars')))
+        floor = decimal(m.get('floor_strike'))
         if floor is None or floor <= 0 or ticker in tickers or floor in floors:
             raise ValueError('Invalid or duplicate threshold')
         tickers.add(ticker)
         floors.add(floor)
-        if yes is None or no is None or not (0 < yes < 1 and 0 < no < 1 and 1-no < yes):
+        pair = quote_pair(m)
+        if pair is None:
             continue
-        bid = (1-no)*100
-        ask = yes*100
+        bid, ask = pair
         strikes.append((abs((bid+ask)/2-50),floor,ticker,bid,ask))
     chosen = sorted(strikes)[:20 if mode=='stress' else 1]
     if not chosen:
@@ -111,10 +111,15 @@ def prepare(board, asset, mode):
                'anchor': 'Strikes expressed in basis points relative to a central listed floor.',
                'quotes': []}
     references, questions = {}, {}
+    market_by_ticker = {m['ticker']:m for m in rows}
     for i, (_,floor,ticker,bid,ask) in enumerate(chosen,1):
         name = f'S{i:02}'
         context['quotes'].append({'strike':name, 'floor_offset_bps':float((floor/anchor-1)*10000),
                                   'yes_bid_cents':float(bid), 'yes_ask_cents':float(ask)})
+        for key in ('yes_ask_size_fp','yes_bid_size_fp','volume_fp','open_interest_fp'):
+            value=decimal(market_by_ticker[ticker].get(key))
+            if value is not None and 0<=value<=10**15:
+                context['quotes'][-1][key]=float(value)
         references[name] = {'ticker':ticker, 'floor':str(floor), 'close_epoch':close}
         if mode=='primary':
             questions['official_yes'] = {'type':'noul','instructions':f'Will {name} officially settle YES at expiry?'}
@@ -184,9 +189,12 @@ def portfolio(baselines):
 def quote_pair(m):
     ask = decimal(m.get('yes_ask_dollars'))
     no = decimal(m.get('no_ask_dollars'))
-    if ask is None or no is None or not (0 < ask < 1 and 0 < no < 1 and 1 - no < ask):
+    bid = decimal(m.get('yes_bid_dollars'))
+    if m.get('yes_bid_dollars') is None and no is not None:
+        bid = 1 - no
+    if bid is None or ask is None or not 0 < bid < ask < 1:
         return None
-    return (1 - no)*100, ask*100
+    return bid*100, ask*100
 
 
 def replay(baseline, followups, asset):
@@ -257,7 +265,9 @@ def grade_checkpoints(baseline, followups, asset, refs, questions, start, reques
             if pair:
                 bid,ask=pair
                 first_bid,first_ask=anchors[ref['ticker']]
-                label={'ask_up':ask>=first_ask+2,'bid_down':bid<=first_bid-2,
+                size=decimal(future.get('yes_ask_size_fp'))
+                size_label=size>=5 if size is not None and size>=0 else None
+                label={'offer_size':size_label,'ask_up':ask>=first_ask+2,'bid_down':bid<=first_bid-2,
                        'wide_spread':ask-bid>3,'mid_up':bid+ask>first_bid+first_ask}.get(target)
         by_target[target]['missing' if label is None else 'yes' if label else 'no']+=1
     return {'asset':asset,'question_count':len(questions),

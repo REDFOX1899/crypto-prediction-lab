@@ -99,3 +99,12 @@ class PortfolioTest(unittest.TestCase):
         self.assertEqual(scores['question_count'],1000)
         self.assertEqual(scores['observed_labels'],80)
         self.assertTrue(all(s['provider_calls']==0 for s in scores['by_asset'].values()))
+
+    def test_new_offer_size_field_can_score_older_requests_without_later_data_in_input(self):
+        from gemini_research import replay
+        original=board(); opening={'board':original,'receipt':'2026-11-12T01:12:02Z'}
+        later=board();later['fetched_at']='2026-11-12T01:12:31Z'
+        for r in later['markets']:r['yes_ask_size_fp']='5.00'
+        covered=replay(opening,[{'board':later,'receipt':'2026-11-12T01:12:32Z'}],'BTC')
+        self.assertEqual(covered['by_target']['offer_size']['yes'],20)
+        self.assertEqual(covered['observed_labels'],100)

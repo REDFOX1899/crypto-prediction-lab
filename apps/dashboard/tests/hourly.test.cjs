@@ -16,3 +16,10 @@ test('binary YES range derives bid from NO ask and rejects crossed or absent quo
   assert.equal(range('.40','.50'),null);
   assert.equal(range('.40',null),null);
 });
+test('hourly sizes preserve fractional contracts and distinguish missing from zero',()=>{
+  const {quantity,bidAsk}=require('../public/hourly.js');
+  assert.equal(quantity('12.25'),12.25);
+  assert.equal(quantity('0.00'),0);
+  for(const value of [null,'',' ','-2','Infinity','5 contracts']) assert.equal(quantity(value),null);
+  assert.deepEqual(bidAsk({yes_bid_dollars:'.49',yes_ask_dollars:'.54',no_ask_dollars:'.50'}),{bid:49,ask:54});
+});
