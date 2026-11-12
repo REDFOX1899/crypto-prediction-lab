@@ -4,16 +4,19 @@ Last updated: 11 November 2026, America/New_York. This is the short orientation 
 
 ## What we are building
 
-Crypto Prediction Lab is a public, read-only research dashboard for people following **BTC, ETH and SOL 15-minute Kalshi contracts**. It helps users understand price, target, time, liquidity, settlement observations and broader market context. The owner is Shantanu Patil. The product is intended to become useful enough for returning users and eventual paying customers, but payments, trading and external AI inference are not implemented. A private numerical forecasting pilot is now available; it has no validated market edge.
+Yes No Tape is the public name of Crypto Prediction Lab. The read-only dashboard covers BTC, ETH and SOL 15-minute Kalshi contracts and open price thresholds settling at the next hourly close. Hourly snapshots are fetched on demand, kept separate from 15-minute history, and do not add a collector. It helps users understand price, target, time, liquidity, settlement observations and broader market context. The owner is Shantanu Patil. The product is intended to become useful enough for returning users and eventual paying customers, but payments, trading and external AI inference are not implemented. A private numerical forecasting pilot is now available; it has no validated market edge.
 
 - Repository: https://github.com/REDFOX1899/crypto-prediction-lab
-- Website: https://crypto-prediction-lab-308289525742.us-central1.run.app/
+- Website: https://yesnotape.com/ (also https://www.yesnotape.com/). Both custom hostnames passed HTTPS, application and API checks on 11 November 2026.
+- Custom domain: `yesnotape.com`, purchased by the owner at IONOS and connected on 11 November 2026 to the existing public `crypto-prediction-lab` service through Cloud Run domain mapping in `us-central1`. This mapping is a Google preview feature. IONOS remains authoritative DNS; Google manages HTTPS. Check the latest handoff for activation status.
 - Working directory: the Git checkout attached to the Crypto Prediction Lab project. An older Desktop checkout also exists; use one active checkout at a time. The current project folder was initially empty and was populated from GitHub during session setup.
-- Application release commit `ea7bea4` publishes scorecards and private paper replay. Earlier `bb5e8b5` added the final-minute threshold. Later documentation commits do not imply a new deployed image.
+- Application commit `fdaf488` adds native hourly quote sizes, contract volume and open interest. Commit `c24061b` adds the live quote tape, technical charts and forecast study. Prior release `ea7bea4` publishes scorecards and private paper replay. Earlier `bb5e8b5` added the final-minute threshold. Later documentation commits do not imply a new deployed image.
 
 ## Implemented product
 
 **Home** (`/`): three live market cards with CF reference values, fixed contract targets, signed distance from target, countdown to the final minute, short observed-price SVG charts, YES/NO asks, visible bid-size shares and recent official outcome cells. Visitors share server-side feeds. Visible tabs poll every two seconds and background tabs slow down. Page startup has separate request and transfer allowances. Home requests a twelve-result projection from the shared outcomes archive cache.
+
+**Market research visuals.** Home shows 15-minute settlement mix and a short, receipt-timestamped YES quote tape. The hourly view shows price ranges and selected-strike liquidity. Data Lab adds CMC price bands, simple rolling RSI and realized volatility, with an observation-time scrubber. The historical opening-model calibration chart uses published aggregates for the model, midpoint and 50% baseline. No live external model scores are displayed. The offline Gemini rehearsal uses frozen opening projections and blinded hourly strike inputs, keeps labels separate, and measures 1,000 candidate feature slots with explicit gaps. [Protocol, evidence and commands](gemini-decisions-research.md).
 
 **Single market** (`/?view=market&asset=BTC`; also ETH/SOL): shared selector, TradingView Lightweight Charts 5.2.1 with line/one-minute candlesticks, reference and contract history where available, an always-visible order book with depth bars, recorded outcomes, and final-minute countdown/observed average/data coverage. Observations and historical candles have explicit source/availability semantics.
 

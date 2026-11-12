@@ -1,0 +1,120 @@
+{
+  "date_et": "2026-11-11",
+  "application_commit": "fdaf488",
+  "research_only": true,
+  "gemini_calls": 0,
+  "private_opening_archive": {
+    "records": 228,
+    "requests": 209,
+    "abstained": 19,
+    "request_bytes_unchanged_after_actual_label_replacement": true
+  },
+  "book_features": {
+    "catalog_size": 1000,
+    "short_rehearsal": {
+      "duration_seconds": 105,
+      "total_captures": 108,
+      "defined_per_asset": 425
+    },
+    "long_rehearsal": {
+      "duration_seconds": 620,
+      "total_captures": 468,
+      "defined_per_asset": {
+        "BTC": 680,
+        "ETH": 680,
+        "SOL": 680
+      },
+      "missing_reference_metrics_per_asset": 320
+    },
+    "book_clock": "public REST receipt and local durable availability"
+  },
+  "hourly_questions": {
+    "earlier_window": {
+      "questions": 1000,
+      "labels_observed": 800
+    },
+    "depth_aware_window": {
+      "questions": 1000,
+      "labels_observed": 980,
+      "labels_observed_if_size_masked": 784,
+      "by_asset": {
+        "BTC": {
+          "questions": 350,
+          "measurable": 350
+        },
+        "ETH": {
+          "questions": 350,
+          "measurable": 350
+        },
+        "SOL": {
+          "questions": 300,
+          "measurable": 280
+        }
+      },
+      "same_request_hash_in_masked_comparison": true
+    }
+  },
+  "timing": {
+    "runs_per_measurement": 100,
+    "warmups": 3,
+    "provider_calls": 0,
+    "feature_windows": {
+      "BTC": {
+        "p50_ms": 12.214,
+        "p95_ms": 12.756,
+        "p99_ms": 13.097
+      },
+      "ETH": {
+        "p50_ms": 12.103,
+        "p95_ms": 12.756,
+        "p99_ms": 14.847
+      },
+      "SOL": {
+        "p50_ms": 12.22,
+        "p95_ms": 12.705,
+        "p99_ms": 12.851
+      }
+    },
+    "encoding": {
+      "1": {
+        "bytes": 5403,
+        "p50_ms": 0.016,
+        "p95_ms": 0.017,
+        "p99_ms": 0.021
+      },
+      "10": {
+        "bytes": 7093,
+        "p50_ms": 0.026,
+        "p95_ms": 0.028,
+        "p99_ms": 0.039
+      },
+      "100": {
+        "bytes": 24153,
+        "p50_ms": 0.105,
+        "p95_ms": 0.114,
+        "p99_ms": 0.151
+      },
+      "1000": {
+        "bytes": 194613,
+        "p50_ms": 0.915,
+        "p95_ms": 1.032,
+        "p99_ms": 1.049
+      }
+    },
+    "joint_request": {
+      "p50_ms": 13.315,
+      "p95_ms": 13.948,
+      "p99_ms": 14.108
+    }
+  },
+  "settlements": {
+    "tickers_matched": 3,
+    "external_forecasts": 0
+  },
+  "checks": {
+    "frontend_tests": 73,
+    "rust_tests": 133,
+    "python_tests": 39,
+    "historical_baseline_score_pairs_reproduced": 20
+  }
+}
