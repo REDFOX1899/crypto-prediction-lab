@@ -2,6 +2,14 @@
 
 Updated: 11 November 2026, America/New_York.
 
+## Prospective live-test performance in Data Lab
+
+User requested testing the model on live data and displaying its performance against market odds. Existing private scheduled opening forecasts were already running. Evaluated registered confirmatory UTC day 2026-11-12 with the on-demand evaluator. As of 02:11:44.454605 UTC, all 24 expected forecasts were timely and scored (eight per asset, eight common closing times). Pooled Brier: calibrated model 0.23295693046233823, contemporaneous midpoint 0.22354062500000005, constant 0.25. Each asset currently favors the midpoint. This is a partial day with insufficient multi-day evidence.
+
+Daily report object suffix `2a34e8d1a5f5b665d98dfcbba6214fbebf763aa7017581bfd9661bca113f1c19.json`, generation `1794449505540854`. Private evidence is in /private/tmp/ynt-live-20261112-first. Independent audit verified 24 cutoff/arithmetic checks, 20 strategy/cohort scores and 100 reliability bins. No forecast was fitted or recomputed. The public projection includes only aggregates and coverage, with Test and Markets selectors, calibration chart, source time and methodology. Existing schedules continue; refreshing the public snapshot remains an operator publication using scripts/publish_live_forecast.py. A missing-report read now handles not_evaluated gracefully.
+
+Application commit `1ee75d6` is on GitHub main. Build `19310928-6d5d-45d9-abaa-77f1c44fc5b7` succeeded. Revision `crypto-prediction-lab-00046-hig` serves 100% public traffic. Passed 74 frontend tests, 39 Python tests, local cargo build --locked -p dashboard, independent report verification, and git diff --check. Local and staged browsers checked both cohorts, all four groups, all three chart series, desktop/mobile and both themes. Next concrete step is another on-demand daily report and public aggregate publication after more unseen outcomes accumulate, followed by the registered multi-day comparison.
+
 ## Owner attribution and GitHub publication
 
 User explicitly authorized pushing the deployed release to REDFOX1899/crypto-prediction-lab. Main now includes application commit `f6773fb`, adding Shantanu Patil in the Home footer with portfolio and LinkedIn links. All 73 frontend tests and diff checks passed. Build `0f5af3b1-854c-4691-9d03-a5537ca6fa82` succeeded. Latest public revision `crypto-prediction-lab-00025-2tr` serves 100% traffic. Both custom domains returned the name and both exact links over HTTPS. This supersedes the earlier blocked GitHub push. Next step remains prospective forecast evaluation.
