@@ -72,6 +72,7 @@ function render(a,now){
  referenceRender(a,now);
  const m=markets[a],state=cardState(m,snapshots[a],live[a],received[a],now),closed=m&&now>=Date.parse(m.close_time);
  text(`home-spread-${a}`,cents(state.spread));
+ for(const [side,value] of [['yes',state.yes],['no',state.no]]) $(`home-${side}-${a}`).parentElement.style.setProperty('--quote',`${(value??0)*100}%`);
  quote(`home-yes-${a}`,state.yes);quote(`home-no-${a}`,state.no);
  const badge=$(`home-live-${a}`);badge.dataset.state=document.hidden?'background':state.mode;
  text(`home-live-${a}`,document.hidden?'BACKGROUND':state.mode==='live'?'LIVE':state.mode==='snapshot'?'SNAPSHOT':state.mode==='stale'?'STALE':'CONNECTING');
@@ -82,6 +83,7 @@ function render(a,now){
  text(`home-source-${a}`,errors[a]?'Window refresh failed · retrying':age===null?'Finding current contract':`Window checked ${age}s ago · results update after settlement`);return state.mode;
 }
 function clock(){
+ root.HourlyTape?.tick();
  const now=nowMs(),close=windowClose(markets,now),fresh=symbols.every(a=>snapshots[a]?.fetched_at&&now-Date.parse(snapshots[a].fetched_at)<45000);
  const seconds=close&&fresh?Math.max(0,Math.ceil((close-now)/1000)):null;
  text('home-countdown',seconds===null?'—:—':`${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`);
@@ -135,7 +137,7 @@ function connect(g){for(const a of symbols){
  reference.onerror=()=>{if(!active||g!==generation)return;delete refs[a];referenceRender(a,nowMs())};
 }}
 
-function leave(){root.QuoteStudy?.leave();root.MarketContext?.leave();active=false;generation++;clearTimeout(timer);clearTimeout(historyTimer);clearInterval(clockTimer);feeds.forEach(f=>f.close());feeds=[];snapshotFlight?.controller.abort();historyFlight?.controller.abort();snapshotFlight=null;historyFlight=null}
+function leave(){root.HourlyTape?.leave();root.QuoteStudy?.leave();root.MarketContext?.leave();active=false;generation++;clearTimeout(timer);clearTimeout(historyTimer);clearInterval(clockTimer);feeds.forEach(f=>f.close());feeds=[];snapshotFlight?.controller.abort();historyFlight?.controller.abort();snapshotFlight=null;historyFlight=null}
 root.HomePage={enter(){leave();active=true;markets={};snapshots={};archived={};errors={};live={};received={};refs={};refReceived={};trails={};anchor=null;for(const a of symbols){text(`home-target-${a}`,'—');delete $(`home-yes-${a}`).dataset.price;delete $(`home-no-${a}`).dataset.price;text(`home-window-${a}`,'Finding the current market…')}const g=generation;root.QuoteStudy?.enter();root.MarketContext?.enter();clock();history();connect(g);refresh(g);loadHistory(g);clockTimer=setInterval(clock,1000)},leave};
 document.addEventListener('visibilitychange',()=>{if(active&&!document.hidden){refresh(generation);if(!historyFlight){clearTimeout(historyTimer);loadHistory(generation)}}});
 })(typeof window!=='undefined'?window:globalThis);

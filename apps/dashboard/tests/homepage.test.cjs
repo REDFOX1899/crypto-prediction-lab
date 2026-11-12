@@ -51,7 +51,7 @@ test('ticker fallback preserves missing asks and validates numeric quotes',()=>{
 });
 test('homepage shares subscriptions, preserves live quotes through metadata refresh and cleans up on leave',async()=>{
  const fs=require('node:fs'),vm=require('node:vm'),nodes=new Map(),timers=new Map(),intervals=new Map(),subscriptions=[],calls=[];let id=0;
- function node(){return {textContent:'',dataset:{},hidden:false,style:{setProperty(){}},children:[],setAttribute(){},replaceChildren(){this.children=[]},append(c){this.children.push(c)},animate(){}}}
+ function node(){return {parentElement:{style:{setProperty(){}}},textContent:'',dataset:{},hidden:false,style:{setProperty(){}},children:[],setAttribute(){},replaceChildren(){this.children=[]},append(c){this.children.push(c)},animate(){}}}
  const document={hidden:false,getElementById(id){if(!nodes.has(id))nodes.set(id,node());return nodes.get(id)},createElement:node,addEventListener(){}};
  const root={HomeVisuals:require('../public/home-visuals.js'),DASHBOARD_POLLING:true,matchMedia:()=>({matches:false}),DashboardFeed:class{constructor(url){this.url=url;subscriptions.push(this)}close(){this.closed=true}}};
  class TestDate extends Date{static now(){return now}}
@@ -72,7 +72,7 @@ test('homepage shares subscriptions, preserves live quotes through metadata refr
 });
 test('leaving Home aborts pending metadata and history requests; old replies cannot repaint it',async()=>{
  const fs=require('node:fs'),vm=require('node:vm'),nodes=new Map(),pending=[],signals=[];let id=0;
- function node(){return {textContent:'',dataset:{},style:{setProperty(){}},setAttribute(){},replaceChildren(){},append(){}}}
+ function node(){return {parentElement:{style:{setProperty(){}}},textContent:'',dataset:{},style:{setProperty(){}},setAttribute(){},replaceChildren(){},append(){}}}
  const root={HomeVisuals:require('../public/home-visuals.js'),DashboardFeed:class{close(){}}},document={hidden:false,getElementById(id){if(!nodes.has(id))nodes.set(id,node());return nodes.get(id)},createElement:node,addEventListener(){}};
  vm.runInNewContext(fs.readFileSync(require.resolve('../public/homepage.js'),'utf8'),{window:root,document,AbortController,Date,Error,JSON,setTimeout:()=>++id,clearTimeout(){},setInterval:()=>++id,clearInterval(){},fetch:(url,opts)=>{signals.push(opts.signal);return new Promise(resolve=>pending.push(()=>resolve({ok:true,json:async()=>url.includes('outcomes')?{contracts:[]}:{...snapshot,market}})))}});
  root.HomePage.enter();assert.equal(signals.length,6);root.HomePage.leave();assert.ok(signals.every(s=>s.aborted));

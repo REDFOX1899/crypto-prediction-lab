@@ -11,6 +11,7 @@ mod evaluation_runner;
 mod final_minute;
 mod forecast;
 mod history;
+mod hourly;
 mod market_rules;
 mod order_book;
 mod outcomes;
@@ -114,6 +115,12 @@ async fn quote_study(State(state): State<AppState>) -> Response {
     }
 }
 
+async fn hourly_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/hourly.js"),
+    )
+}
 async fn study_script() -> impl IntoResponse {
     (
         [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
@@ -1021,6 +1028,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/", get(index))
         .route("/api/health", get(|| async { "ok" }))
         .route("/api/outcomes", get(outcome_board))
+        .route("/api/hourly", get(hourly::board))
         .route("/api/archive/window", get(archived_window))
         .route("/api/context", get(context_board))
         .route("/api/context/history", get(research_context))
@@ -1038,6 +1046,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/combos/quote", get(combo_quote))
         .route("/api/feeds", get(feeds))
         .route("/assets/feed-client.js", get(feed_script))
+        .route("/assets/hourly.js", get(hourly_script))
         .route("/assets/homepage.js", get(homepage_script))
         .route("/assets/focus.css", get(focus_style))
         .route("/assets/theme.js", get(theme_script))
