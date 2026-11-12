@@ -17,7 +17,7 @@ import time
 PUBLIC = Path(__file__).resolve().parents[1] / "apps/dashboard/public"
 UPSTREAM = "https://crypto-prediction-lab-308289525742.us-central1.run.app"
 READ_PATHS = {"/api/assets", "/api/outcomes", "/api/context", "/api/context/history", "/api/feeds",
-              "/api/snapshot", "/api/history/reference", "/api/history/market", "/api/combos/quote",
+              "/api/snapshot", "/api/hourly", "/api/history/reference", "/api/history/market", "/api/combos/quote",
               "/api/archive/window", "/api/blockworks", "/api/research/before", "/api/research/checkpoint"}
 CACHE = {}
 LOCK = threading.Lock()
@@ -50,7 +50,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             with LOCK:
                 saved = CACHE.get(self.path)
-            ttl = 1 if parsed.path == "/api/feeds" else 8 if parsed.path == "/api/snapshot" else 60
+            ttl = 1 if parsed.path == "/api/feeds" else 8 if parsed.path in {"/api/snapshot", "/api/hourly"} else 60
             if saved and time.monotonic() - saved[0] < ttl:
                 self.reply(200, saved[1])
                 return

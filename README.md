@@ -1,8 +1,8 @@
-# Crypto Prediction Lab
+# Yes No Tape
 
-A read-only Rust dashboard and client for BTC, ETH and SOL 15-minute Kalshi markets. Research live reference prices, contract quotes, liquidity and settled outcomes. It cannot place orders and makes no profitability claim. Not affiliated with Kalshi.
+A read-only Rust dashboard and client for BTC, ETH and SOL 15-minute Kalshi markets and thresholds settling at the next hourly close. Research live reference prices, contract quotes, liquidity and settled outcomes. It cannot place orders and makes no profitability claim. Not affiliated with Kalshi.
 
-Public dashboard: https://crypto-prediction-lab-308289525742.us-central1.run.app/
+Visit [Yes No Tape](https://yesnotape.com/).
 
 New chat or contributor? Start with [project memory](docs/PROJECT_MEMORY.md), [latest handoff](docs/SESSION_HANDOFF.md) and [session guide](docs/SESSION_GUIDE.md). Repository working rules are in [AGENTS.md](AGENTS.md). Use the folder containing this Cargo workspace as your Codex project directory.
 
@@ -23,6 +23,10 @@ The public dashboard compares archived YES asks with official results at minutes
 Choose **Replay last completed window** on a Home asset card, **Replay this market** in Single market settled details, or **Replay** in Data Lab. Scrub from minute 0 to 15 or press Play. Future quote candles stay hidden and the official result appears at the end. Minute-10 books appear only after their actual receipt time. [Replay and checkpoint collection](docs/market-replay.md)
 
 ## Data Lab
+
+The technical chart follows recorded CoinMarketCap spot observations with a time scrubber, 20-sample price bands, 14-change RSI and realized volatility. The forecast study compares the dated opening-model pilot with the market midpoint on the same held-out contracts. Each reliability dot includes sample support. [Open Data Lab](https://yesnotape.com/?view=data)
+
+The private Gemini rehearsal prepares blinded opening and hourly research requests, measures feature availability and replays checkpoint labels locally. [Experiment, coverage and reproduction](docs/gemini-decisions-research.md)
 
 The new `/?view=data` workspace compares aligned BTC/ETH/SOL official outcomes, records coverage, and charts shared CMC returns and correlations with sample counts. Select an outcome cell to inspect the contract summaries, then choose an asset for its stored one-minute YES-ask OHLC. Exact values and missing minutes remain visible. Export observations as JSON for inspection; the export is not a point-in-time training dataset.
 
