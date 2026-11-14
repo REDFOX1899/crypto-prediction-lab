@@ -1072,6 +1072,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/research/checkpoint", get(replay_checkpoint))
         .route("/assets/market-replay.js", get(replay_script))
         .route("/assets/market-replay.css", get(replay_style))
+        .route(
+            "/assets/market-news.js",
+            get(|| async {
+                (
+                    [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+                    include_str!("../public/market-news.js"),
+                )
+            }),
+        )
         .route("/assets/data-lab.js", get(data_lab_script))
         .route("/assets/data-lab.css", get(data_lab_style))
         .route("/assets/market-context.js", get(context_script))
