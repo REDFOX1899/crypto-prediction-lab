@@ -1,6 +1,14 @@
 # Session handoff
 
-Updated: 11 November 2026, America/New_York.
+Updated: 13 November 2026, America/New_York.
+
+## Redis cancellation and saved-news review
+
+The owner canceled Redis on 13 November. GCP inventory in gitunderstand/us-central1 showed the public dashboard on crypto-prediction-lab-00046-hig, collector on crypto-history-collector-00016-j4q and MCP on crypto-research-mcp-00005-n75, each at 100% of its service traffic. The public health endpoint returned ok. The collector and MCP rejected anonymous requests. The named Firestore database is active. Five app schedules were enabled for market context, minute ten, opening checkpoints, follow-up and quarter-hour history. Neither managed Redis API was enabled and there was no app news schedule. The local Redis pilot and its news preview were stopped. Two existing captures (29 links) were preserved in an ignored local file.
+
+The merge candidate keeps a saved-file viewer in Data Lab. A visitor selects a version 1 JSON file containing a captures array. Each capture carries a quarter-hour slot, its original save time, individual source statuses and a stories array. Files stay in browser memory and clear on workspace exit. The chart exposes only captures saved by the selected cutoff. Latest means the last saved check in the file. There is no collector, news API, provider key, scheduler or new storage dependency in this change. The underlying file is excluded from Git.
+
+Passed cargo fmt --check, offline locked workspace Clippy with all targets and warnings as errors, 133 Rust tests, 79 frontend tests, 39 Python tests and git diff --check. The normal local dashboard loaded both real captures, showed nine links at the earlier entry cutoff, filtered by BTC and cleared the file on navigation. Browser smoke checks passed at 390 and 1280 pixels in light and dark. The news and collection endpoints both returned 404. This Git-only change has no production deployment. Cloud rollout would be a separate action.
 
 ## Prospective live-test performance in Data Lab
 
