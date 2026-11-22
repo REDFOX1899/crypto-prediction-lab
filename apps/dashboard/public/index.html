@@ -91,8 +91,8 @@ window.addEventListener('error', event => {
 <link rel="stylesheet" href="/assets/data-lab.css?v=quant-20261121">
 <link rel="stylesheet" href="/assets/quote-study.css?v=1">
 <link rel="stylesheet" href="/assets/market-replay.css?v=1">
-<link rel="stylesheet" href="/assets/quant-lab.css?v=quant-20261122">
-<link rel="stylesheet" href="/assets/terminal.css?v=quant-20261122">
+<link rel="stylesheet" href="/assets/quant-lab.css?v=20261122-r3">
+<link rel="stylesheet" href="/assets/terminal.css?v=20261122-r3">
 <style>.final-threshold{padding:18px 20px;margin:18px 0;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px}.final-threshold>span{font-size:10px;letter-spacing:.08em;color:var(--muted)}.final-threshold>strong{display:block;font-size:clamp(25px,4vw,38px);font-weight:550;letter-spacing:-.04em;margin:7px 0;font-variant-numeric:tabular-nums}.final-threshold p,.final-threshold small,.final-threshold summary{font-size:12px;line-height:1.6;color:var(--muted)}.final-threshold p{margin:6px 0}.final-threshold details{margin-top:10px}</style>
 </head>
 <body>
@@ -687,12 +687,12 @@ window.addEventListener('error', event => {
 <script src="/assets/chart-4.4.7.umd.min.js"></script>
 <script src="/assets/chart-data.js"></script>
 <script src="/assets/outcome-board.js?v=replay-1"></script>
-<script src="/assets/navigation.js?v=lat-20261122"></script>
+<script src="/assets/navigation.js?v=20261122-r3"></script>
 <script src="/assets/technical-chart.js?v=1"></script>
 <script src="/assets/forecast-study.js?v=1"></script>
-<script src="/assets/live-news.js?v=quant-20261121"></script>
-<script src="/assets/quant-lab.js?v=quant-20261122"></script>
-<script src="/assets/latency-lab.js?v=lat-20261122"></script>
+<script src="/assets/live-news.js?v=20261122-r3"></script>
+<script src="/assets/quant-lab.js?v=20261122-r3"></script>
+<script src="/assets/latency-lab.js?v=20261122-r3"></script>
 <script src="/assets/market-news.js?v=1"></script>
 <script src="/assets/data-lab.js?v=saved-news-1"></script>
 <script src="/assets/home-visuals.js?v=focus-20261109-r1"></script>
@@ -818,10 +818,11 @@ function selectAsset(asset){
  const url=new URL(location.href);url.searchParams.set('asset',asset.symbol);url.searchParams.set('view','market');history.replaceState(null,'',url);
  FinalMinuteView.select(asset.symbol);OutcomeBoard.select(asset.symbol);resetMarket();el.ticker.textContent='Finding market…';el.status.textContent='Connecting';el.notice.textContent=`Connecting to ${asset.symbol}…`;applyBook();renderChart();connectStreams();loadReferenceHistory();refresh();
 }
+function safeCall(obj,fn,...args){try{if(obj&&typeof obj[fn]==='function')obj[fn](...args)}catch(e){console.error(fn,e)}}
 function workspace(mode,push=true){
  MarketReplay.close();
  if(!['home','quant','latency','market','combos','data'].includes(mode))mode='home';
- window.LiveNews?.show(mode);window.QuantLab?.leave();window.QuantLab?.leaveHome();window.LatencyLab?.leave();
+ safeCall(window.LiveNews,'show',mode);safeCall(window.QuantLab,'leave');safeCall(window.QuantLab,'leaveHome');safeCall(window.LatencyLab,'leave');
  PaperReview.clear();generation++;clearTimeout(timer);events?.close();referenceEvents?.close();OutcomeBoard.pause();ComboLab.leave();HomePage.leave();DataLab.leave();FinalMinuteView.pause();
  $('home-workspace').hidden=mode!=='home';$('quant-workspace').hidden=mode!=='quant';$('latency-workspace').hidden=mode!=='latency';$('market-workspace').hidden=mode!=='market';$('combo-workspace').hidden=mode!=='combos';$('data-workspace').hidden=mode!=='data';
  for(const [id,value]of [['workspace-home','home'],['workspace-quant','quant'],['workspace-latency','latency'],['workspace-market','market'],['workspace-combos','combos'],['workspace-data','data']])$(id).setAttribute('aria-pressed',String(mode===value));
@@ -829,9 +830,9 @@ function workspace(mode,push=true){
  if(mode==='home'){url.searchParams.delete('view');url.searchParams.delete('asset')}
  else{url.searchParams.set('view',mode);if(mode==='market')url.searchParams.set('asset',selected.symbol);else url.searchParams.delete('asset')}
  if(push)history.pushState(null,'',url);
- if(mode==='home'){$('selected-name').textContent='15-minute research';HomePage.enter();window.QuantLab?.enterHome()}
- else if(mode==='quant'){$('selected-name').textContent='Quant & Timing Lab';window.QuantLab?.enter()}
- else if(mode==='latency'){$('selected-name').textContent='Latency & Pipeline Telemetry';window.LatencyLab?.enter()}
+ if(mode==='home'){$('selected-name').textContent='15-minute research';HomePage.enter();safeCall(window.QuantLab,'enterHome')}
+ else if(mode==='quant'){$('selected-name').textContent='Quant & Timing Lab';safeCall(window.QuantLab,'enter')}
+ else if(mode==='latency'){$('selected-name').textContent='Latency & Pipeline Telemetry';safeCall(window.LatencyLab,'enter')}
  else if(mode==='combos'){$('selected-name').textContent='BTC / ETH / SOL';ComboLab.enter()}
  else if(mode==='data'){$('selected-name').textContent='Evidence & context';DataLab.enter()}
  else selectAsset(selected);

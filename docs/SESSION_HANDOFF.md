@@ -8,7 +8,7 @@ Built, verified, deployed live to `https://www.yesnotape.com/` and `https://yesn
 
 **Production state (`gitunderstand` / `us-central1`):**
 - Cloud Build **`8be44800-34ef-454a-a567-09bc76bda52a`** succeeded (`us-central1-docker.pkg.dev/gitunderstand/crypto-prediction-lab/dashboard:quant-latency-20261122`).
-- Public dashboard: **`crypto-prediction-lab-00032-697`** serving 100% traffic (`0.25 vCPU`, `256 MiB`, `concurrency=1`, `min=0`, `max=1`, `gen1`, `--cpu-throttling`, `--no-cpu-boost`).
+- Public dashboard: **`crypto-prediction-lab-00033-xzc`** serving 100% traffic (`quant-cachefix-20261122`: adds `Cache-Control: no-cache, must-revalidate` on `/`, versioned `?v=20261122-r3` asset tags, and defensive `safeCall()` workspace guards; `0.25 vCPU`, `256 MiB`, `concurrency=1`, `min=0`, `max=1`, `gen1`, `--cpu-throttling`, `--no-cpu-boost`).
 - Private collector: **`crypto-history-collector-00021-hmc`** serving 100% traffic (IAM-protected; anonymous `POST /collect-news` verified `403`, public `POST /collect-news` verified `404`).
 - Dedicated Secret Manager keys `crypto-prediction-lab-gemini-key` and `crypto-prediction-lab-gemini-key-secondary` mounted read-only on `crypto-prediction-lab` and `crypto-history-collector`. Unrelated services in `gitunderstand` untouched.
 

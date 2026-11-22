@@ -1181,8 +1181,11 @@ impl Snapshot {
     }
 }
 
-async fn index() -> Html<&'static str> {
-    Html(include_str!("../public/index.html"))
+async fn index() -> impl IntoResponse {
+    (
+        [(header::CACHE_CONTROL, "no-cache, must-revalidate")],
+        Html(include_str!("../public/index.html")),
+    )
 }
 
 async fn chart_library() -> impl IntoResponse {
@@ -1611,6 +1614,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
                 let static_asset = request.uri().path().starts_with("/assets/")
                     && request.uri().path() != "/assets/feed-client.js";
+                let versioned_asset = request.uri().query().is_some_and(|q| q.contains("v="))
+                    || request.uri().path().contains("chart-4.4.7")
+                    || request.uri().path().contains("lightweight-charts-5.2.1");
                 let accepts_gzip = delivery::accepts_gzip(
                     &request
                         .headers()
@@ -1647,7 +1653,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if static_asset && !response.headers().contains_key(header::CACHE_CONTROL) {
                     response.headers_mut().insert(
                         header::CACHE_CONTROL,
-                        header::HeaderValue::from_static("public, max-age=86400, immutable"),
+                        if versioned_asset {
+                            header::HeaderValue::from_static("public, max-age=86400, immutable")
+                        } else {
+                            header::HeaderValue::from_static("public, max-age=300")
+                        },
                     );
                 }
 
