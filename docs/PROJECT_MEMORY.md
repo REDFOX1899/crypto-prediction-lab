@@ -1,16 +1,16 @@
 # Project memory
 
-Last updated: 11 November 2026, America/New_York. This is the short orientation for a fresh chat. Confirm changing operational facts before acting on them.
+Last updated: 22 November 2026, America/New_York. This is the short orientation for a fresh chat. Confirm changing operational facts before acting on them.
 
 ## What we are building
 
-Yes No Tape is the public name of Crypto Prediction Lab. The read-only dashboard covers BTC, ETH and SOL 15-minute Kalshi contracts and open price thresholds settling at the next hourly close. Hourly snapshots are fetched on demand, kept separate from 15-minute history, and do not add a collector. It helps users understand price, target, time, liquidity, settlement observations and broader market context. The owner is Shantanu Patil. The product is intended to become useful enough for returning users and eventual paying customers, but payments, trading and external AI inference are not implemented. A private numerical forecasting pilot is now available; it has no validated market edge.
+Yes No Tape is the public name of Crypto Prediction Lab. The read-only dashboard covers BTC, ETH and SOL 15-minute Kalshi contracts and open price thresholds settling at the next hourly close. Hourly snapshots are fetched on demand, kept separate from 15-minute history, and do not add a collector. It helps users understand price, target, time, liquidity, settlement observations, entry-timing microstructure, and broader market context. The owner is Shantanu Patil. Payments, live order execution, transfers, and private combo RFQs remain disabled.
 
 - Repository: https://github.com/REDFOX1899/crypto-prediction-lab
-- Website: https://yesnotape.com/ (also https://www.yesnotape.com/). Both custom hostnames passed HTTPS, application and API checks on 11 November 2026.
-- Custom domain: `yesnotape.com`, purchased by the owner at IONOS and connected on 11 November 2026 to the existing public `crypto-prediction-lab` service through Cloud Run domain mapping in `us-central1`. This mapping is a Google preview feature. IONOS remains authoritative DNS; Google manages HTTPS. Check the latest handoff for activation status.
-- Working directory: the Git checkout attached to the Crypto Prediction Lab project. An older Desktop checkout also exists; use one active checkout at a time. The current project folder was initially empty and was populated from GitHub during session setup.
-- Application commit `fdaf488` adds native hourly quote sizes, contract volume and open interest. Commit `c24061b` adds the live quote tape, technical charts and forecast study. Prior release `ea7bea4` publishes scorecards and private paper replay. Earlier `bb5e8b5` added the final-minute threshold. Later documentation commits do not imply a new deployed image.
+- Website: https://yesnotape.com/ (also https://www.yesnotape.com/). Both custom hostnames route via Cloud Run domain mapping in `gitunderstand` / `us-central1` to `crypto-prediction-lab`.
+- Quant & Paper-Trading Lab (`/?view=quant`): Combines a sub-2ms warm Rust quant fast-path (`apps/dashboard/src/gemini_decisions.rs`) with stale-while-revalidate (SWR) Google `gemini-decision-1` (`POST /v1beta/decisions`, 0 output tokens, compact blinded prompt), `Server-Timing` telemetry, a 100-agent `$100` theoretical paper-trading tournament (`apps/dashboard/public/btc-15m-simulation.json`), and interactive **Chart.js 4.4.7** (MIT, self-hosted at `/assets/chart-4.4.7.umd.min.js`, `/licenses/chartjs`) visuals across light and dark themes.
+- Live News & Tavily Catalyst Scorer (`apps/dashboard/src/news.rs`): Runs only on the private collector (`POST /collect-news` via `crypto-market-news` scheduler). Strips SEO converter URLs and scores candidate Tavily + CoinDesk + Federal Reserve headlines in a single `gemini-decision-1` batch call (0 output tokens) before publishing to Firestore `market_news_v1/latest`, served read-only on public `GET /api/news`.
+- Dedicated Gemini Secrets: `crypto-prediction-lab-gemini-key` and `crypto-prediction-lab-gemini-key-secondary` in `gitunderstand` Secret Manager, accessible read-only to `crypto-prediction-lab` and `crypto-history-collector` service accounts only. Never commit or print credentials.
 
 ## Implemented product
 
@@ -86,8 +86,8 @@ Before-outcome research filters completed intervals to open/+5/+10/+14 minute cu
 
 - Cargo workspace: `apps/dashboard`, `apps/market-cli`, `crates/kalshi-client`.
 - Axum/Tokio/Reqwest backend. Main routes/role selection: `apps/dashboard/src/main.rs`.
-- Asset allowlist: `assets.rs`. Kalshi stream/book/reference state: `stream.rs`, `order_book.rs`, `reference.rs`. Final-minute observations: `final_minute.rs`. Chart history: `history.rs`. Public response compression: `delivery.rs`. Durable settled outcomes: `outcomes.rs`. Combo matching: `combos.rs`. CMC collection/quota normalization: `context.rs`.
-- Frontend: `apps/dashboard/public/index.html`, `homepage.js`, `home-visuals.js`, `feed-client.js`, `market-context.js`, `theme.js`, `focus.css` and the existing workspace modules. No frontend framework is required.
+- Asset allowlist: `assets.rs`. Kalshi stream/book/reference state: `stream.rs`, `order_book.rs`, `reference.rs`. Final-minute observations: `final_minute.rs`. Chart history: `history.rs`. Public response compression: `delivery.rs`. Durable settled outcomes: `outcomes.rs`. Combo matching: `combos.rs`. CMC collection/quota normalization: `context.rs`. Quant + SWR Gemini Decision 1 engine: `gemini_decisions.rs`. Tavily/RSS + single-pass Gemini news collector: `news.rs`.
+- Frontend: `apps/dashboard/public/index.html`, `homepage.js`, `home-visuals.js`, `feed-client.js`, `market-context.js`, `theme.js`, `focus.css`, `terminal.css`, `quant-lab.js`, `quant-lab.css`, `live-news.js`, `btc-15m-simulation.json`, `vendor/chart-4.4.7.umd.min.js`, `vendor/lightweight-charts-5.2.1.js`. No frontend framework is required.
 - Source priority: Kalshi for rules/targets/books/official results; CF publications via Kalshi for reference observations; CMC for broad aggregate context. An exchange price or CMC quote cannot substitute for the settlement reference.
 
 ## Production and data

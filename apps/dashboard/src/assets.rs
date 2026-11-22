@@ -19,6 +19,13 @@ pub struct AssetInfo {
 }
 impl Asset {
     pub const ALL: [Self; 3] = [Self::Btc, Self::Eth, Self::Sol];
+    pub fn code(self) -> &'static str {
+        match self {
+            Self::Btc => "BTC",
+            Self::Eth => "ETH",
+            Self::Sol => "SOL",
+        }
+    }
     pub fn info(self) -> AssetInfo {
         match self {
             Self::Btc => AssetInfo {

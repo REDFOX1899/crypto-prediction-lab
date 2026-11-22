@@ -70,7 +70,10 @@ impl Budgets {
             && route.is_some_and(|path| {
                 matches!(
                     path,
-                    "/" | "/api/assets" | "/api/research/quote-study" | "/api/health"
+                    "/" | "/api/assets"
+                        | "/api/research/quote-study"
+                        | "/api/quant/simulation"
+                        | "/api/health"
                 ) || path.starts_with("/assets/")
             });
         if page_read { &self.page } else { &self.data }

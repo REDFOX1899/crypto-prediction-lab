@@ -358,6 +358,62 @@ impl Archive {
         });
         Ok(value)
     }
+    pub(crate) async fn news_document(&self, id: &str) -> Result<Option<Value>, Failure> {
+        if !matches!(id, "latest" | "pilot") {
+            return Err("Invalid news ID".into());
+        }
+        let doc = self
+            .saved_document(&format!("market_news_v1/{id}"), 128 * 1024)
+            .await?;
+        doc.map(|d| {
+            let payload: Value = serde_json::from_str(
+                d["fields"]["payload"]["stringValue"]
+                    .as_str()
+                    .ok_or("Missing news payload")?,
+            )?;
+            Ok(json!({"payload":payload,"updateTime":d["updateTime"]}))
+        })
+        .transpose()
+    }
+    pub(crate) async fn news_claim(&self, slot: i64) -> Result<bool, Failure> {
+        let response = self
+            .http
+            .post(format!(
+                "{}/market_news_attempts_v1?documentId=s{slot}",
+                self.documents
+            ))
+            .bearer_auth(self.token().await?)
+            .json(&json!({"fields":{"slot":{"integerValue":slot.to_string()}}}))
+            .send()
+            .await?;
+        if response.status() == reqwest::StatusCode::CONFLICT {
+            return Ok(false);
+        }
+        response.error_for_status()?;
+        Ok(true)
+    }
+    pub(crate) async fn news_publish(
+        &self,
+        slot: i64,
+        payload: &Value,
+        prior: Option<&str>,
+    ) -> Result<(), Failure> {
+        let fields = json!({"payload":{"stringValue":serde_json::to_string(payload)?}});
+        let condition = prior
+            .map(|v| json!({"updateTime":v}))
+            .unwrap_or(json!({"exists":false}));
+        self.http
+            .post(format!("{}:commit", self.documents))
+            .bearer_auth(self.token().await?)
+            .json(&json!({"writes":[
+                {"update":{"name":format!("{}/market_news_v1/s{slot}",self.documents.trim_start_matches("https://firestore.googleapis.com/v1/")),"fields":fields},"currentDocument":{"exists":false}},
+                {"update":{"name":format!("{}/market_news_v1/latest",self.documents.trim_start_matches("https://firestore.googleapis.com/v1/")),"fields":fields},"currentDocument":condition}
+            ]}))
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
     /// Fixed collection for the manually published, licensed research pilot; no writes.
     pub(crate) async fn blockworks_document(&self, id: &str) -> Result<Option<Value>, Failure> {
         if id.len() > 80 || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {

@@ -1,7 +1,7 @@
 // One shared request per tab; never opens a provider connection for each card.
 (function(root){
 'use strict';
-const listeners=new Set();let timer=null,request=null,failures=0,retryUntil=0;
+const listeners=new Set();let timer=null,request=null,failures=0,retryUntil=0,serverInterval=2000;
 function schedule(delay){clearTimeout(timer);timer=null;if(listeners.size&&!request)timer=setTimeout(()=>{timer=null;poll()},Math.max(delay,retryUntil-Date.now()))}
 async function poll(){
  if(request||!listeners.size)return;
@@ -11,6 +11,14 @@ async function poll(){
   const response=await fetch('/api/feeds',{cache:'no-store',signal:flight.controller.signal});
   if(!response.ok){if(response.status===429){const seconds=Number(response.headers?.get('Retry-After'));if(Number.isFinite(seconds)&&seconds>0)retry=Math.min(60000,seconds*1000)}throw Error('Feed unavailable')}
   const data=await response.json();if(request!==flight)return;failures=0;retryUntil=0;
+  const rttMs=Math.max(0,Date.now()-flight.started);
+  if(Number.isFinite(Number(data?.interval_ms)))serverInterval=Math.max(500,Math.min(5000,Number(data.interval_ms)));
+  const btcRef=data?.feeds?.BTC?.reference;
+  const cfWire=Number.isFinite(Number(btcRef?.wire_latency_ms))?Number(btcRef.wire_latency_ms):null;
+  root.DASHBOARD_LATENCY={rtt_ms:rttMs,server_ms:Number.isFinite(Number(data?.server_ms))?Number(data.server_ms):null,cf_wire_ms:cfWire,interval_ms:serverInterval,at:Date.now()};
+  if(typeof root.dispatchEvent==='function'&&typeof root.CustomEvent==='function'){
+   try{root.dispatchEvent(new root.CustomEvent('dashboard-latency',{detail:root.DASHBOARD_LATENCY}))}catch{}
+  }
   for(const listener of flight.listeners){
    if(!listeners.has(listener))continue;
    const value=data.feeds?.[listener.asset]?.[listener.channel];
@@ -20,7 +28,7 @@ async function poll(){
   if(request===flight){failures=Math.min(failures+1,5);for(const listener of flight.listeners)if(listeners.has(listener)){try{listener.onerror?.()}catch{}}}
  }finally{
   clearTimeout(timeout);
-  if(request===flight){request=null;const interval=document.hidden?15000:2000;
+  if(request===flight){request=null;const interval=document.hidden?15000:serverInterval;
    const backoff=Math.max(retry,failures?Math.min(30000,1000*2**failures):0);retryUntil=Date.now()+backoff;
    schedule(Math.max(250,interval-(Date.now()-flight.started),backoff));}
  }

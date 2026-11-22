@@ -18,6 +18,8 @@ pub struct ReferenceUpdate {
     pub state: &'static str,
     pub value: Option<Decimal>,
     pub source_time_ms: Option<i64>,
+    pub received_at_ms: Option<i64>,
+    pub wire_latency_ms: Option<i64>,
 }
 impl ReferenceUpdate {
     pub fn status(state: &'static str) -> Self {
@@ -25,6 +27,8 @@ impl ReferenceUpdate {
             state,
             value: None,
             source_time_ms: None,
+            received_at_ms: None,
+            wire_latency_ms: None,
         }
     }
 }
@@ -54,6 +58,7 @@ pub fn start(
     tx: watch::Sender<ReferenceUpdate>,
     asset: Asset,
     recorder: crate::final_minute::Shared,
+    latency: std::sync::Arc<crate::latency::Monitor>,
 ) {
     let Some(credentials) = credentials else {
         tx.send_replace(ReferenceUpdate::status("disabled"));
@@ -62,9 +67,16 @@ pub fn start(
     tokio::spawn(async move {
         loop {
             tx.send_replace(ReferenceUpdate::status("connecting"));
-            if connect(&credentials, &tx, URL, asset.info().index, &recorder)
-                .await
-                .is_err()
+            if connect(
+                &credentials,
+                &tx,
+                URL,
+                asset.info().index,
+                &recorder,
+                &latency,
+            )
+            .await
+            .is_err()
             {
                 eprintln!("Reference feed disconnected or unavailable; retrying.");
             }
@@ -79,6 +91,7 @@ async fn connect(
     url: &str,
     index: &str,
     recorder: &crate::final_minute::Shared,
+    latency: &crate::latency::Monitor,
 ) -> Result<(), ()> {
     let ts = Utc::now().timestamp_millis().to_string();
     let mut request = url.into_client_request().map_err(|_| ())?;
@@ -113,19 +126,28 @@ async fn connect(
                 last_frame=time::Instant::now();
                 match frame {
                     Message::Text(text)=>{
+                        // Capture exact arrival timestamp BEFORE JSON parsing for true wire latency!
+                        let now=Utc::now().timestamp_millis();
                         let json:serde_json::Value=serde_json::from_str(&text).map_err(|_| ())?;
                         match json.get("type").and_then(|x|x.as_str()) {
                             Some("error")=>return Err(()),
                             Some("cfbenchmarks_value")=>{
                                 let value=parse_reference(json.get("msg").cloned().ok_or(())?,index)?;
-                                let now=Utc::now().timestamp_millis();
                                 if crate::final_minute::valid_time(now,value.time) {
+                                    let wire_ms = now.saturating_sub(value.time);
+                                    latency.record_cf_wire_ms(wire_ms);
                                     // Valid delayed seconds can improve coverage without rewinding the live price.
                                     recorder.lock().unwrap_or_else(|e|e.into_inner()).observe(now,value.time,value.value);
                                     if latest_source_time.is_none_or(|last|value.time>last) {
                                         latest_source_time=Some(value.time);
                                         last_value=Some(time::Instant::now());
-                                        tx.send_replace(ReferenceUpdate {state:"live",value:Some(value.value),source_time_ms:Some(value.time)});
+                                        tx.send_replace(ReferenceUpdate {
+                                            state:"live",
+                                            value:Some(value.value),
+                                            source_time_ms:Some(value.time),
+                                            received_at_ms:Some(now),
+                                            wire_latency_ms:Some(wire_ms),
+                                        });
                                     }
                                 }
                             }
@@ -191,8 +213,11 @@ mod tests {
         let url = format!("ws://{address}/trade-api/ws/v2");
         let recorder = crate::final_minute::Recorder::shared();
         let recorded = recorder.clone();
+        let mon = std::sync::Arc::new(crate::latency::Monitor::new());
         let task =
-            tokio::spawn(async move { connect(&credentials, &tx, &url, "BRTI", &recorder).await });
+            tokio::spawn(
+                async move { connect(&credentials, &tx, &url, "BRTI", &recorder, &mon).await },
+            );
         time::timeout(Duration::from_secs(3), rx.changed())
             .await
             .unwrap()

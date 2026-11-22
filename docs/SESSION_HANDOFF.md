@@ -1,6 +1,36 @@
 # Session handoff
 
-Updated: 13 November 2026, America/New_York.
+Updated: 22 November 2026, America/New_York.
+
+## Quant Lab, 100-Agent `$100` Paper Tournament, Gemini Decision 1 & Latency Telemetry — live on yesnotape.com
+
+Built, verified, deployed live to `https://www.yesnotape.com/` and `https://yesnotape.com/`, and pushed to GitHub (`codex/quant-decisions-ui` and `main`). Strictly read-only research and theoretical paper simulation; trading, RFQs, transfers and payments remain disabled.
+
+**Production state (`gitunderstand` / `us-central1`):**
+- Cloud Build **`8be44800-34ef-454a-a567-09bc76bda52a`** succeeded (`us-central1-docker.pkg.dev/gitunderstand/crypto-prediction-lab/dashboard:quant-latency-20261122`).
+- Public dashboard: **`crypto-prediction-lab-00032-697`** serving 100% traffic (`0.25 vCPU`, `256 MiB`, `concurrency=1`, `min=0`, `max=1`, `gen1`, `--cpu-throttling`, `--no-cpu-boost`).
+- Private collector: **`crypto-history-collector-00021-hmc`** serving 100% traffic (IAM-protected; anonymous `POST /collect-news` verified `403`, public `POST /collect-news` verified `404`).
+- Dedicated Secret Manager keys `crypto-prediction-lab-gemini-key` and `crypto-prediction-lab-gemini-key-secondary` mounted read-only on `crypto-prediction-lab` and `crypto-history-collector`. Unrelated services in `gitunderstand` untouched.
+
+**Quantitative & AI work completed:**
+- Synced live Firestore news collector (`apps/dashboard/src/news.rs`, `roxmltree`, `outcomes.rs`) and upgraded it with SEO converter URL filtering + single-pass `gemini-decision-1` batch headline scoring (36 questions in 1 `425ms` benchmark call; `257–319ms` live on Cloud Run, filtering `10/14` noise stories live).
+- Ran strict 5-fold expanding chronological walk-forward simulations (1h purged embargo, exact Kalshi quadratic taker/maker fees, 1,000× day-block bootstrap CIs) across **1,614 settled BTC 15m contracts** (**1,050 strictly OOS**), plus **360/360 live blinded `gemini-decision-1` calls** (`0` errors, `p50 = 287.8ms`, `0` output tokens, `$0.0255` total).
+- Executed a **100-agent parallel `$100` paper-trading tournament** across 10 strategy families (`apps/dashboard/public/btc-15m-simulation.json`, schema v2): `10/100` finished above `$100` (median `$95.31`, mean `$89.93`), `0/100` survived strict Benjamini-Hochberg FDR `q <= 0.05`. Best realistic taker (`n>=30`, fixed-1): `FLB Fav 72-88c + XAsset Min11-13` (`$104.44`, `+4.44%`, `197` trades, `84.8%` win rate, `+2.25c/trade`, `2.3%` max DD, Sharpe `+6.64`); best optimistic midpoint maker: `$115.93` Q-Kelly / `$109.78` fixed-1; best adverse-selection Touch-Maker: `$98.01` (`-1.99%`).
+
+**10-Agent Market-Viewing Latency Optimizations & UI Overhaul:**
+- Implemented `apps/dashboard/src/latency.rs` (`GET /api/latency`, `20µs` server duration) and upgraded `apps/dashboard/src/gemini_decisions.rs`, `stream.rs`, `reference.rs`, `main.rs`, `crates/kalshi-client/src/lib.rs`, and `feed-client.js`:
+  - Cut `/api/feeds` artificial sleep `100ms -> 20ms` (`p50 = 22.3ms` live) and doubled visible refresh cadence `2s -> 1s`.
+  - Pipelined Kalshi WS subscription flush + 4s rollover polling + `0ms` clean-rollover reconnect (`-16s` rollover gap).
+  - Pre-parse CF Benchmarks arrival timestamping exposing live `wire_latency_ms` (`50–63ms` live BTC/ETH/SOL on `yesnotape.com`; live Kalshi L2 book age `34–47ms`).
+  - Two-tier sub-2ms Quant Fast-Path + SWR `gemini-decision-1` overlay (`0.19ms` warm server total, `16–23µs` Rust quant, `202–334ms` cold compact-prompt Gemini, `Server-Timing` headers) and `public, max-age=86400, immutable` caching for vendored Chart.js 4.4.7 & versioned assets.
+- Added **Quant Lab** (`/?view=quant`, 8 Chart.js 4.4.7 canvases + 100-agent filterable leaderboard + 14×6 EV heatmap), **Latency Lab** (`/?view=latency`, 5 live Chart.js canvases + 10-agent audit ledger), always-visible top-bar **Latency Pill**, Home live BTC Quant strip, and recruiter-ready `README.md` + `docs/QUANT_RESEARCH_REPORT.md`.
+
+**Checks passed:**
+- `cargo fmt --check`, `cargo clippy --locked --workspace --all-targets -- -D warnings`, `cargo test --locked --workspace` (**142 tests**: 137 dashboard + 5 kalshi-client).
+- `node --test apps/dashboard/tests/*.test.cjs` (**87 tests**), `python3 -m unittest discover -s scripts/tests -q` (**39 tests**), `git diff --check`.
+- Live production CDP browser audit on `https://www.yesnotape.com`: Quant Lab (`8` Chart.js canvases, `100` agent rows, `84` heatmap cells, `6` latency chips), Latency Lab (`5` Chart.js canvases, `10` audit rows, live header pill `RTT 84ms`), desktop 1440px light/dark & mobile 390px (`vw=390, sw=390`, **0 JS exceptions**).
+
+**Next concrete step:** Accumulate 30+ prospective days of untouched live Min 10–13 paper signals (`FLB Fav 72-88c + XAsset` and `Quant + Gemini Decision 1`) to test whether any late-window paper edge survives multi-week prospective evaluation without selection bias.
 
 ## Redis cancellation and saved-news review
 

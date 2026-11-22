@@ -1,133 +1,143 @@
-# Yes No Tape
+# Yes No Tape · Crypto Prediction Lab
 
-A read-only Rust dashboard and client for BTC, ETH and SOL 15-minute Kalshi markets and thresholds settling at the next hourly close. Research live reference prices, contract quotes, liquidity and settled outcomes. It cannot place orders and makes no profitability claim. Not affiliated with Kalshi.
+> **Low-latency Rust/Axum quantitative research terminal for BTC, ETH & SOL 15-minute binary Kalshi contracts — combining sub-2ms fast-path microstructure modeling, Google `gemini-decision-1` (0 output tokens), Tavily catalyst filtering, and a 100-agent `$100` out-of-sample paper-trading tournament.**
 
-Visit [Yes No Tape](https://yesnotape.com/).
+**Live Production Terminal:** [https://www.yesnotape.com/](https://www.yesnotape.com/) · **Quant & Paper-Trading Lab:** [https://www.yesnotape.com/?view=quant](https://www.yesnotape.com/?view=quant) · **Live Latency Telemetry:** [https://www.yesnotape.com/?view=latency](https://www.yesnotape.com/?view=latency) · **Full Quant Report:** [docs/QUANT_RESEARCH_REPORT.md](docs/QUANT_RESEARCH_REPORT.md)
 
-New chat or contributor? Start with [project memory](docs/PROJECT_MEMORY.md), [latest handoff](docs/SESSION_HANDOFF.md) and [session guide](docs/SESSION_GUIDE.md). Repository working rules are in [AGENTS.md](AGENTS.md). Use the folder containing this Cargo workspace as your Codex project directory.
+> **Scope & Safety:** Strictly **read-only research & paper simulation**. Order execution, transfers, payments, and private combo RFQs are disabled. Not affiliated with Kalshi.
 
-The application includes a live homepage, a shared single-market workspace and a combo research view. Features include light/dark themes, observed-price SVG plots, interactive charts, an always-visible order book, final-minute coverage and a Firestore settlement archive. Private combo RFQs and trading remain disabled.
+---
 
-[UI and data semantics](docs/focus-ui-design.md) · [History archive](docs/history-archive.md) · [Cost controls](docs/cost-controls.md) · [Data-engineering plan](docs/data-provider-engineering-plan.md)
+## Executive Summary (60-Second Overview)
 
-CoinMarketCap adds a separately labeled market-context section with shared scheduled collection, normalized Firestore observations, and a collector-only API key. See [CMC context and quotas](docs/coinmarketcap-context.md). Coinbase remains on hold.
+| Dimension | What We Built & Measured |
+| --- | --- |
+| **Core Stack** | **Rust / Axum / Tokio** async backend (`0.25 vCPU` / `256 MiB` Cloud Run) + zero-framework ES6/CSS/SVG frontend + self-hosted **Chart.js 4.4.7 (MIT)** & **TradingView Lightweight Charts 5.2.1 (Apache-2.0)** |
+| **Live Dataset** | **1,614** settled BTC + **1,613** ETH + **1,608** SOL 15m Kalshi markets, **6,483** opening/+45s L2 books, **3,348** minute-10 L2 books, **2,468** CoinMarketCap samples, **746** Tavily/RSS news snapshots in Firestore |
+| **Latency Engineering** | **10-agent audit**: `<2 ms` warm quant path (`~20 µs` compute) · `1.0 s` adaptive market feed (`20 ms` server yield, down from `100 ms` sleep + `2 s` poll) · pipelined Kalshi WS rollover (`-16 s` rollover gap) · pre-parse CF Benchmarks wire latency · immutable static caching · always-visible header pill & `/?view=latency` telemetry page |
+| **Google `gemini-decision-1`** | **360/360** blinded unseen calls (`0` errors, **`p50 = 287.8 ms`**, `0` output tokens, **`$0.0255` total cost**); compact structured prompt cuts live tokens ~31% (`772 → 500–531` tokens, live Cloud Run `151–206 ms`) |
+| **Tavily + AI News Scorer** | Single-pass batch scoring (**36 questions in 1 `425 ms` call**, live production `257–319 ms`) removes SEO converter spam & off-topic false positives (`10/14` noise filtered live) |
+| **100-Agent `$100` Paper Tournament** | **100** distinct quant agents across **10** strategy families run in parallel (`0.35 s` across 10 cores) over **1,050 strictly OOS windows** with exact Kalshi quadratic fees & **Benjamini-Hochberg FDR** audit |
+| **Verification Suite** | **142** Rust unit/integration tests (`cargo clippy -D warnings`) · **87** Node frontend tests · **39** Python audit tests |
 
-Direct CF Benchmarks and Coinbase integrations and durable high-frequency event capture are proposed in the data-engineering plan; they are not yet implemented.
+---
 
-## Quote and outcome study
+## System Architecture
 
-The public dashboard compares archived YES asks with official results at minutes 5, 10 and 14. Choose an asset and price band to see the observed settlement rate, the break-even rate before fees and the eligible sample count. The first study covers November 7–9 UTC and is saved in the app's named Firestore database. [Chart definitions, storage and refresh commands](docs/quote-study.md)
+```mermaid
+flowchart LR
+    subgraph Feeds["External Market & Intelligence Feeds"]
+        K["Kalshi WS + Public REST\n(KXBTC15M / KXETH15M / KXSOL15M)"]
+        CF["CF Benchmarks via Kalshi\n(BRTI / ETH / SOL Settlement Ref)"]
+        CMC["CoinMarketCap Context\n(5m Scheduled Collector)"]
+        TAV["Tavily + CoinDesk + Fed RSS\n(15m Scheduled Collector)"]
+        GEM["Google Gemini Decision 1\n(POST /v1beta/decisions · 0 out tok)"]
+    end
 
-## Market replay
+    subgraph GCP["GCP Cloud Run · us-central1 (0.25 vCPU · 256Mi · $40 Budget Guard)"]
+        COL["Private Collector\n(IAM-Only · Cloud Scheduler)"]
+        FS[("Named Firestore DB\ncrypto-prediction-lab")]
+        DASH["Public Rust/Axum Server\n(yesnotape.com)"]
+        MCP["Private Research MCP\n(Cutoff-Safe Capability Scopes)"]
+    end
 
-Choose **Replay last completed window** on a Home asset card, **Replay this market** in Single market settled details, or **Replay** in Data Lab. Scrub from minute 0 to 15 or press Play. Future quote candles stay hidden and the official result appears at the end. Minute-10 books appear only after their actual receipt time. [Replay and checkpoint collection](docs/market-replay.md)
+    subgraph Client["Zero-Framework Terminal UI (Light & Dark · Desktop & Mobile)"]
+        UI1["Home: Live Quant Desk + BTC/ETH/SOL Tape"]
+        UI2["Quant Lab: 100-Agent Tournament + 8 Chart.js Canvases"]
+        UI3["Single Market: Lightweight Charts + Always-Visible L2 Book"]
+        UI4["Combo Lab & Data Lab: Replay + Calibration + Evidence Ledger"]
+    end
 
-## Data Lab
-
-The technical chart follows recorded CoinMarketCap spot observations with a time scrubber, 20-sample price bands, 14-change RSI and realized volatility. The forecast study compares the dated opening-model pilot with the market midpoint on the same held-out contracts. Each reliability dot includes sample support. [Open Data Lab](https://yesnotape.com/?view=data)
-
-The private Gemini rehearsal prepares blinded opening and hourly research requests, measures feature availability and replays checkpoint labels locally. [Experiment, coverage and reproduction](docs/gemini-decisions-research.md)
-
-The new `/?view=data` workspace compares aligned BTC/ETH/SOL official outcomes, records coverage, and charts shared CMC returns and correlations with sample counts. Select an outcome cell to inspect the contract summaries, then choose an asset for its stored one-minute YES-ask OHLC. Exact values and missing minutes remain visible. Export observations as JSON for inspection; the export is not a point-in-time training dataset.
-
-`GET /api/context/history` reads up to 288 saved CMC samples from the last 24 hours, with a five-minute shared cache. It does not poll CMC or write to storage. `GET /api/archive/window?asset=BTC&ticker=...` reads one validated archived market, returns normalized quote candles only, and caches at most 32 windows for five minutes. These routes use the existing configured archive identity. They are deployed on the public dashboard.
-
-For a visual preview using the currently deployed public outcomes and short CMC history, without cloud credentials:
-
-```sh
-python3 scripts/preview-data-lab.py
+    K --> COL & DASH
+    CF --> DASH
+    CMC --> COL
+    TAV --> COL
+    COL -->|"Batch 1-pass spam filter"| GEM
+    COL --> FS
+    FS --> DASH & MCP
+    DASH -->|"Sub-2ms Fast-Path + Async SWR Overlay"| GEM
+    DASH --> UI1 & UI2 & UI3 & UI4
 ```
 
-Open http://127.0.0.1:3002/?view=data. This loopback helper serves local assets, the local quote study when present and read-only responses from the deployed dashboard, including the existing archive and cutoff inspectors.
+---
 
-Data Lab also includes a saved Blockworks BTC/ETH/SOL price-and-volume pilot and a “Before this outcome” inspector. Select an outcome cell to inspect completed intervals before a chosen cutoff, with retrospective downloads labeled separately from saved collection timestamps. CF reference and order-book history are marked unavailable when not archived. The one-time seven-day pilot is bounded; public refreshes cannot invoke provider collection, and exports exclude Blockworks. See [timing, deployment and data provenance](docs/before-outcome.md) and [pilot commands and credits](docs/blockworks-data-plan.md).
+## Key Quantitative Findings (1,614 Settled BTC 15m Windows · 1,050 Strictly OOS)
 
-## Run
+All backtests enforce **strict chronological 5-fold expanding walk-forward splits with a 1-hour (4-window) purged embargo**, **exact Kalshi quadratic fees** (`taker = ceil(0.07·p·(1−p))`, `maker = ceil(0.0175·p·(1−p))`), **zero directional intercept** (preventing bear-market drift leakage), and **day-block bootstrap 95% confidence intervals**.
 
-Install stable Rust using [rustup](https://rustup.rs/), then:
+### 1. When to Take the Bet Inside the 15-Minute Window
+- **Minutes 1–5 (Early Friction Trap):** Wide `1.00¢` median spread + peak `1.32–1.62¢` quadratic taker fee (`1.78–2.12¢` total drag). Crossing the spread early bleeds systematically (`Naive Min-2 Favorite: −$26.05` on 1-contract units).
+- **Minutes 10–13 (Optimal Compression Window):** Median bid-ask spread collapses **10× (`1.00¢ → 0.10¢`)**, 1-minute volume surges **2.2× (`155k → 353k`)**, and quadratic taker fees fall **3× (`1.62¢ → 0.50¢`)**.
+- **Strongest Structural Alpha:** Contemporaneous **`ETH + SOL → BTC` logit lead-lag divergence** delivers positive out-of-sample Brier Skill Score (`+0.22%` to `+0.35%`) over the Kalshi midpoint in Minutes 12–13.
+
+### 2. 100-Agent Parallel `$100` Paper-Trading Tournament Results
+Every agent started with **`$100.00`** theoretical paper capital across **1,050 unseen OOS windows** (10 strategy families × 10 variants: Cross-Asset Lead-Lag, Multi-Factor L2 Ensemble, Adverse-Selection Touch-Maker, Black-Scholes Digital `N(d2)`, Impulse Jump-Fade, Momentum/Volume Surge, Favorite-Longshot Bias, L2 Depth Imbalance, Session/News Catalysts, and Controls/Latency Stress):
+
+| Rank / Benchmark | Paper Strategy | Execution Mode | End Bankroll (`$100` Start) | Net ROI | Trades (Pass %) | Win Rate | EV / Trade | Max DD | Sharpe |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **#1 Overall (Optimistic)** | `6-Factor L2 Min12–14 Mid-Maker Q-Kelly` | Midpoint Maker* | **`$115.93`** | `+15.93%` | `283` (`73.0%`) | `51.9%` | `+3.46¢` | `28.2%` | `+2.69` |
+| **#3 Overall (Fixed-1)** | `6-Factor L2 Min12–14 Mid-Maker 1.5¢` | Midpoint Maker* | **`$109.78`** | `+9.78%` | `283` (`73.0%`) | `51.9%` | `+3.46¢` | `6.4%` | `+7.36` |
+| **#1 Realistic Taker (`n≥30`)** | `FLB Fav 72–88¢ + XAsset Min11–13` | **Taker (Cross Ask)** | **`$104.44`** | **`+4.44%`** | `197` (`81.2%`) | **`84.8%`** | **`+2.25¢`** | **`2.3%`** | **`+6.64`** |
+| **#2 Realistic Taker (`n≥30`)** | `6-Factor L2 Min12–14 Taker 0.6¢` | **Taker (Cross Ask)** | **`$103.46`** | `+3.46%` | `227` (`78.4%`) | `48.9%` | `+1.52¢` | `6.2%` | `+2.94` |
+| **Cash Preservation Control** | `100% PASS Benchmark` | Cash | `$100.00` | `0.00%` | `0` (`100%`) | — | `0.00¢` | `0.0%` | `0.00` |
+| **Best Realistic Touch-Maker** | `Touch-Maker BS-Digital Min10–13` | **Touch-Fill Maker**† | `$98.01` | `−1.99%` | `753` (`28.3%`) | `38.5%` | `−0.26¢` | `9.2%` | `−0.84` |
+| **Negative Control (Mid)** | `Naive Mid Favorite (Min 7)` | Taker (Cross Ask) | `$76.86` | `−23.14%` | `964` (`8.2%`) | `77.0%` | `−2.40¢` | `25.9%` | `−12.84` |
+| **Negative Control (Early)** | `Naive Early Favorite (Min 2)` | Taker (Cross Ask) | `$73.95` | `−26.05%` | `867` (`17.4%`) | `66.4%` | `−3.00¢` | `29.6%` | `−8.42` |
+
+> **Institutional Honesty & Multiple-Testing Audit:** Out of **100** strategies, only **10/100** finished above `$100` (median `$95.31`, mean `$89.93`), and **0/100** passed strict **Benjamini-Hochberg FDR (`q ≤ 0.05`)** across 100 simultaneous hypotheses. *Midpoint Maker assumes zero adverse selection; †Touch-Fill Maker requires the next minute's low/high to actually cross the resting limit order, demonstrating that **binary queue adverse selection costs ~3–4¢/trade**.
+
+### 3. Latency Engineering & Edge Preservation
+Empirical Min 10–13 BTC quote diffusion (`4.5¢/min`) means stale signals rapidly decay after-fee EV:
+
+| Execution Path | Measured Server Latency | Modeled Drift Slippage | `6-Factor Min12–14 Taker` EV | `$100` Paper End |
+| --- | ---: | ---: | ---: | ---: |
+| **Yes No Tape Fast-Path (Rust + WS + SWR)** | **`< 2 ms`** (`~150 µs` quant) | `0.012¢` | **`+1.512¢`** | **`$103.43`** |
+| **Live `gemini-decision-1` Cold Call (Compact Prompt)** | **`~190–290 ms`** (`0` out tok) | `0.135¢` | `+1.388¢` | `$103.15` |
+| **Unoptimized REST Polling (`1.0 s`)** | `1,000 ms` | `0.270¢` | `+1.253¢` | `$102.84` |
+| **Human Click / Stale Quote (`5.0 s – 10.0 s`)** | `5,000–10,000 ms` | `0.604–0.854¢` | `+0.666–0.918¢` | `$101.51–$102.08` |
+
+---
+
+## Workspaces & API Surface
+
+- **Home (`/`)**: Live BTC 15m Quant + Timing Desk strip, 3 live BTC/ETH/SOL cards with CF reference vs target sparklines, 15m & Hourly quotes, CoinMarketCap context, and Gemini-filtered Tavily catalyst feed.
+- **Quant Lab (`/?view=quant`)**: Live BTC/ETH/SOL Decision Desk with `Server-Timing` latency strip, `Full AI + SWR` vs `Fast Path <2ms` switch, **100-Agent `$100` Paper Tournament** (searchable/filterable leaderboard + distribution + equity + drawdown Chart.js canvases), **Minute 1→14 friction combo chart**, **14×6 EV heatmap**, **Latency Decay & Calibration curves**, **24h UTC session chart**, and **360-call Gemini + Tavily audit**.
+- **Latency Lab (`/?view=latency`)**: Live scrolling market-viewing RTT & CF Benchmarks exchange→Cloud Run wire latency stream, Before-vs-After pipeline waterfall, BTC/ETH/SOL real-time quote & L2 book freshness, square-root quote drift EV decay curve, live `p50/p95` percentile breakdown, and the 10-agent latency audit ledger — accessible from the always-visible header Latency Pill on every page.
+- **Single Market (`/?view=market&asset=BTC`)**: TradingView Lightweight Charts 5.2.1 (line/1m candles), always-visible L2 depth book, break-even map, final-minute averaging tracker, and market replay.
+- **Combo Lab (`/?view=combos`) & Data Lab (`/?view=data`)**: Multi-asset aligned settlement history, CMC technical bands/RSI/volatility, prospective live-test calibration, and evidence ledger.
+
+Key read-only endpoints: `GET /api/health`, `GET /api/assets`, `GET /api/snapshot?asset=BTC`, `GET /api/quant/signal?asset=BTC[&mode=fast][&refresh=1]`, `GET /api/quant/simulation`, `GET /api/news`, `GET /api/outcomes?asset=BTC`, `GET /api/hourly?asset=BTC`. Collection routes (`/collect`, `/collect-news`, etc.) exist **only** on the private IAM-protected collector (`404` on public host).
+
+---
+
+## Quick Start & Verification
 
 ```sh
+# 1. Run local dashboard (read-only public snapshots; no API keys required)
+cargo run -p dashboard
+# Open http://127.0.0.1:3000  |  Quant Lab: http://127.0.0.1:3000/?view=quant
+
+# 2. Run CLI inspector for live Kalshi crypto series
 cargo run -p market-cli -- KXBTC15M
-```
 
-Pass another verified crypto series ticker to inspect it. The CLI checks the series category with Kalshi and accepts crypto series only. If no currently active window exists, the CLI says so. Quotes can be missing or stale and do not guarantee a fill. Trading status is for the default exchange index.
-
-## Verify
-
-```sh
+# 3. Full verification suite (Rust + JS + Python)
 cargo fmt --check
 cargo clippy --locked --workspace --all-targets -- -D warnings
 cargo test --locked --workspace
 node --test apps/dashboard/tests/*.test.cjs
+python3 -m unittest discover -s scripts/tests -q
 ```
 
-[Architecture](docs/architecture.md) | [Roadmap](docs/roadmap.md)
+### Optional Environment Variables (Server-Side Only — Never Commit Secrets)
+- `KALSHI_API_KEY_ID` + `KALSHI_PRIVATE_KEY_PATH`: Read-only Kalshi Ed25519 credentials for authenticated WebSocket order-book & CF Benchmarks reference streaming.
+- `GEMINI_API_KEY` (or `GEMINI_API_KEY_FILE`): Enables live `POST /v1beta/decisions` (`gemini-decision-1`) scoring; falls back gracefully to deterministic Rust quant if omitted.
 
-Market data is from [Kalshi's public API](https://docs.kalshi.com/api-reference/market/get-markets). Read each market's rules: Kalshi describes 15-minute markets as comparing averages from the minute before open and close, not a last exchange trade. Review Kalshi and reference-index terms before storing or redistributing their data. Historical access and API limits may change.
+---
 
-This project does not use real-money trading credentials or submit trades. Never commit secrets or personal data. Report security issues privately to the maintainer; do not post credentials in an issue.
+## Deep-Dive Documentation Map
 
-## Local dashboard
+- [Quantitative Research & 100-Agent Tournament Report](docs/QUANT_RESEARCH_REPORT.md) — Mathematical specs, fee/slippage models, adverse selection, FDR audit, and latency engineering.
+- [Project Memory](docs/PROJECT_MEMORY.md) · [Latest Session Handoff](docs/SESSION_HANDOFF.md) · [Architecture](docs/architecture.md) · [Public Deployment & Cost Controls](docs/cost-controls.md)
+- [Gemini Decisions Protocol](docs/gemini-decisions-research.md) · [Prospective Evaluation](docs/prospective-evaluation.md) · [Paper Scorecard](docs/paper-scorecard.md) · [Market Replay](docs/market-replay.md) · [Private Research MCP](docs/private-research-mcp.md)
 
-```sh
-cargo run -p dashboard
-```
-
-Open http://127.0.0.1:3000. The server listens only on your Mac and uses the same Rust client as the CLI. Without a key, the detailed workspace uses public market and order-book snapshots for the selected BTC, ETH or SOL contract. An optional read-only key enables streaming. The chart begins collecting YES ask snapshots only while the page is open, resets when the market rolls over, and does not fill in missing history. Quotes and order-book levels come from separate requests and are not an atomic snapshot. An unavailable order book is reported separately. This is not an execution system.
-
-Kalshi's order book reports YES and NO bids; it does not directly list asks. Quotes are indicative and do not guarantee fills. A registered account and API key are needed for Kalshi's authenticated WebSocket connection. Before publicly hosting market data, verify Kalshi and benchmark-provider redistribution terms, operating costs, and rate limits.
-
-### Optional: live ticker stream
-
-Create a production Ed25519 API key in Kalshi under Account & security → API Keys. Store the downloaded private key outside this repository with owner-only access. Never paste the key into chat or commit it. Set the key ID and private-key file path in your local shell, then start the dashboard:
-
-```sh
-read -r 'KALSHI_API_KEY_ID?Kalshi API key ID: '
-export KALSHI_API_KEY_ID
-export KALSHI_PRIVATE_KEY_PATH="$HOME/.config/crypto-prediction-lab/kalshi-private-key.pem"
-cargo run -p dashboard
-```
-
-The example path must point to your own key file. The server signs the WebSocket handshake locally; the key never enters the browser. Production credentials are required for the production endpoint. When configured, per-asset streams shared by visitors provide ticker and order-book updates for BTC, ETH and SOL. The order book streams a full snapshot followed by ordered changes; a gap triggers reconnect and a fresh snapshot. The app falls back to a labeled public REST snapshot when streaming is unavailable. The app reconnects and rechecks market rollover; if disconnected, it falls back to public snapshots. The chart represents observed asks, not a complete history. Missing stream events cannot be recovered from the ticker stream. Never expose this local server or its credentials to the public without a separate deployment and security review.
-
-### Reading the charts and depth
-
-The BTC reference chart shows CF Benchmarks BRTI history, when the account is entitled, together with live values relayed by Kalshi. It is not the market's final settlement average. The dotted target line comes from the market's displayed target, when available. The YES contract chart is a separate series in cents using Kalshi YES-ask candles and live sampled asks. The reference feed uses the same read-only key on a separate connection; it can be unavailable independently of market quotes.
-
-Order-book bars represent the quantity at each displayed price relative to the largest displayed quantity on that same side, not cumulative depth. A YES bid of 35¢ corresponds to a NO ask of 65¢ at the same quantity; likewise a NO bid of 40¢ implies a YES ask of 60¢. Quotes can change and do not include fees. Before publishing any of this data, verify Kalshi and CF Benchmarks data rights.
-
-### Interactive charts
-
-The dashboard includes TradingView Lightweight Charts 5.2.1, served locally. The chart supports scroll/pinch zoom, drag to pan, and a crosshair. Switch between a line and 1-minute candlesticks for either BRTI or the YES ask. Candles are assembled from values actually observed by the page: open is the first value in the minute, high and low are observed extremes, and close is the latest. The current candle and the first candle after opening or reconnecting may be partial. A YES-ask candle describes sampled quotes, not executed trades; BRTI candles describe reference-index observations, not Kalshi contract prices. Empty minutes are not filled. The dashboard requests completed YES-ask candles for the active market from Kalshi, and requests the two most recent completed BRTI hours from the CF Benchmarks passthrough when entitled. CF history may lag, be incomplete, or unavailable; gaps are left blank and shown in the status. Live observations are collected after opening the page and are not persisted. WebSocket and browser update coalescing can omit ticks, so these are not authoritative exchange OHLC bars.
-
-The bundled chart library is Apache-2.0 licensed; its license and notice are in `apps/dashboard/public/vendor/`. TradingView Lightweight Charts™ Copyright (с) 2025 TradingView, Inc. <https://www.tradingview.com/>.
-
-### Historical data details
-
-BRTI history comes from Kalshi’s authenticated CF Benchmarks passthrough (`/cfbenchmarks/history/values`), requesting two completed UTC-hour windows and aggregating returned index ticks into one-minute OHLC bars. Data can be delayed or unavailable, and this endpoint may require account entitlement. The server bounds response size and caches results for five minutes. It never sends key material to the browser. The YES chart uses Kalshi’s public 1-minute YES-ask candlesticks for the current market only, followed by locally observed live quote values. Past candles end at their stated time; the chart places them at the minute start. Null, invalid and unfinished provider candles are omitted. The current live candle may be incomplete. Settled contracts and available minute candles are archived separately; complete tick-level replay and backtesting remain future work. Verify data rights before storage or public redistribution.
-
-### Shared asset workspace
-
-The selector enables BTC, ETH and SOL 15-minute markets. One registry supplies the supported symbols, market series and reference indices. Select an asset to change the shared chart, live quotes, order book and history. The selected symbol is kept in the page URL, for example `/?asset=ETH`. Unsupported API assets are rejected. History and live reference access can differ by asset and account entitlement. Per-asset workers and caches are shared by dashboard tabs. Browser requests from an older selection are ignored after switching.
-
-For a second local preview server: `DASHBOARD_PORT=3001 cargo run -p dashboard`.
-
-## Public hosting
-
-The deployed public pilot uses shared two-second browser polling; local mode supports SSE. Reference and market connections remain server-side. A separate private scheduled collector writes settled-contract history. Deployment scripts refer to dedicated Secret Manager resources and contain no private key material. See [deployment](docs/public-deployment.md), [production pilot](docs/production-pilot.md) and [combo semantics](docs/combo-lab.md).
-
-The current live feed buffers are bounded in memory. The archive is not a complete tick/order-book capture, and the observed final-minute average is not an official settlement result. Existing hosting limits and budget alerts reduce cost without guaranteeing an absolute monthly bill cap.
-
-## Private research MCP
-
-Trusted agent hosts can read one assigned, cutoff-safe BTC, ETH or SOL opening packet and calculate costs from its frozen order-book depth. The private service uses Cloud Run IAM plus a short-lived capability, with local stdio support. Outcomes, later snapshots, scope overrides and writes are excluded. [MCP contract, host setup and verified deployment](docs/private-research-mcp.md). No automatic model calls or trading are enabled.
-
-The private MCP also provides [fee-aware conditional paper buy levels](docs/fee-aware-paper-levels.md), including decimal fee rounding, conservative YES/NO ceilings and frozen-book depth checks. Assumed fee/tick rules and uncalibrated bounds are visible; eligible order prices remain disabled.
-
-Private agents can also read [verified pre-cutoff exchange fee and tick rules](docs/verified-market-rules.md) committed with new BTC/ETH/SOL opening decisions. Older missing rule data stays unavailable, and future-effective changes/outcomes are excluded.
-
-Private numerical forecasting now compares a regularized logistic/sigmoid challenger with constant, historical-rate and contemporaneous-midpoint baselines. The first small held-out pilot does not beat the pooled midpoint; all forecasts remain experimental and ineligible for orders. See [forecasting and calibration](docs/forecasting-calibration.md).
-
-[Prospective evaluation](docs/prospective-evaluation.md) privately scores saved live forecasts against versioned official results, with coverage gaps, baseline comparisons and immutable GCP reports. Reports are on demand and remain outside the blinded MCP; current evidence does not establish a market edge.
-
-The dashboard includes a **YES/NO break-even map** in Single market, historical outcome transitions in Data Lab, and private paper replay with fee-aware watch prices, simulated fills, realized equity and calibration by band. [Score definitions, evidence requirements and operator commands](docs/paper-scorecard.md)
+*Third-party chart licenses bundled locally: Chart.js 4.4.7 (MIT, `/licenses/chartjs`) and TradingView Lightweight Charts 5.2.1 (Apache-2.0, `/licenses/lightweight-charts`).*

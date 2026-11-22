@@ -67,8 +67,10 @@ pub struct Update {
     pub yes_bid: Option<Decimal>,
     pub yes_ask: Option<Decimal>,
     pub received_at: Option<String>,
+    pub received_at_ms: Option<i64>,
     pub book: Option<BookView>,
     pub book_received_at: Option<String>,
+    pub book_received_at_ms: Option<i64>,
 }
 impl Update {
     pub fn status(state: &'static str) -> Self {
@@ -78,8 +80,10 @@ impl Update {
             yes_bid: None,
             yes_ask: None,
             received_at: None,
+            received_at_ms: None,
             book: None,
             book_received_at: None,
+            book_received_at_ms: None,
         }
     }
 }
@@ -102,6 +106,7 @@ pub fn start(
     credentials: Option<Credentials>,
     tx: watch::Sender<Update>,
     asset: Asset,
+    latency: Arc<crate::latency::Monitor>,
 ) {
     let Some(credentials) = credentials else {
         tx.send_replace(Update::status("disabled"));
@@ -114,15 +119,27 @@ pub fn start(
                 Ok(markets) => current_market(&markets, Utc::now()).cloned(),
                 Err(_) => None,
             };
-            if let Some(market) = market
-                && connect_market(&client, &credentials, &market.ticker, &tx, WS_URL, asset)
-                    .await
-                    .is_err()
-            {
-                eprintln!("Kalshi stream disconnected or authentication failed; retrying.");
+            if let Some(market) = market {
+                match connect_market(
+                    &client,
+                    &credentials,
+                    &market.ticker,
+                    &tx,
+                    WS_URL,
+                    asset,
+                    &latency,
+                )
+                .await
+                {
+                    // Clean 15-minute contract rollover: reconnect immediately (0ms sleep)!
+                    Ok(()) => continue,
+                    Err(()) => {
+                        eprintln!("Kalshi stream disconnected or authentication failed; retrying.");
+                    }
+                }
             }
             tx.send_replace(Update::status("reconnecting"));
-            time::sleep(Duration::from_secs(5)).await;
+            time::sleep(Duration::from_secs(3)).await;
         }
     });
 }
@@ -134,6 +151,7 @@ async fn connect_market(
     tx: &watch::Sender<Update>,
     url: &str,
     asset: Asset,
+    latency: &crate::latency::Monitor,
 ) -> Result<(), ()> {
     let timestamp = Utc::now().timestamp_millis().to_string();
     let mut request = url.into_client_request().map_err(|_| ())?;
@@ -154,26 +172,30 @@ async fn connect_market(
         .await
         .map_err(|_| ())?
         .map_err(|_| ())?;
-    let command = serde_json::json!({"id":1,"cmd":"subscribe","params":{"channels":["ticker"],"market_ticker":ticker}});
+    // Pipeline both subscription commands into one TCP flush to eliminate handshake RTT.
+    let cmd1 = serde_json::json!({"id":1,"cmd":"subscribe","params":{"channels":["ticker"],"market_ticker":ticker}});
+    let cmd2 = serde_json::json!({"id":2,"cmd":"subscribe","params":{"channels":["orderbook_delta"],"market_ticker":ticker}});
     socket
-        .send(Message::Text(command.to_string().into()))
+        .feed(Message::Text(cmd1.to_string().into()))
         .await
         .map_err(|_| ())?;
-    let command = serde_json::json!({"id":2,"cmd":"subscribe","params":{"channels":["orderbook_delta"],"market_ticker":ticker}});
     socket
-        .send(Message::Text(command.to_string().into()))
+        .feed(Message::Text(cmd2.to_string().into()))
         .await
         .map_err(|_| ())?;
+    socket.flush().await.map_err(|_| ())?;
     let mut book = Book::default();
     let mut latest = Update::status("subscribed");
     latest.ticker = Some(ticker.to_owned());
-    let mut check_market = time::interval(Duration::from_secs(15));
+    let mut check_market = time::interval(Duration::from_secs(4));
     check_market.tick().await;
     let mut last_message = time::Instant::now();
     loop {
         tokio::select! {
             frame = socket.next() => {
                 let frame = frame.ok_or(())?.map_err(|_| ())?;
+                let arrival = Utc::now();
+                let arrival_ms = arrival.timestamp_millis();
                 last_message = time::Instant::now();
                 match frame {
                     Message::Text(text) => {
@@ -185,7 +207,8 @@ async fn connect_market(
                             Some("ticker") => {
                                 let envelope: Envelope = serde_json::from_value(value).map_err(|_| ())?;
                                 if envelope.kind == "ticker" && let Some(m) = envelope.msg && m.market_ticker.as_deref() == Some(ticker) {
-                                    latest.state="live"; latest.yes_bid=m.yes_bid_dollars; latest.yes_ask=m.yes_ask_dollars; latest.received_at=Some(Utc::now().to_rfc3339()); tx.send_replace(latest.clone());
+                                    latency.record_ws_tick();
+                                    latest.state="live"; latest.yes_bid=m.yes_bid_dollars; latest.yes_ask=m.yes_ask_dollars; latest.received_at=Some(arrival.to_rfc3339()); latest.received_at_ms=Some(arrival_ms); tx.send_replace(latest.clone());
                                 }
                             }
                             Some("orderbook_snapshot") => {
@@ -194,7 +217,8 @@ async fn connect_market(
                                 let snapshot: Snapshot = serde_json::from_value(value.get("msg").cloned().ok_or(())?).map_err(|_| ())?;
                                 if snapshot.market_ticker != ticker { return Err(()); }
                                 book.snapshot(snapshot, sid, seq)?;
-                                latest.book=Some(book.view()); latest.book_received_at=Some(Utc::now().to_rfc3339()); tx.send_replace(latest.clone());
+                                latency.record_ws_tick();
+                                latest.book=Some(book.view()); latest.book_received_at=Some(arrival.to_rfc3339()); latest.book_received_at_ms=Some(arrival_ms); tx.send_replace(latest.clone());
                             }
                             Some("orderbook_delta") => {
                                 let sid = value.get("sid").and_then(|v| v.as_u64()).ok_or(())?;
@@ -202,7 +226,8 @@ async fn connect_market(
                                 let delta: Delta = serde_json::from_value(value.get("msg").cloned().ok_or(())?).map_err(|_| ())?;
                                 if delta.market_ticker != ticker { return Err(()); }
                                 book.delta(delta, sid, seq)?;
-                                latest.book=Some(book.view()); latest.book_received_at=Some(Utc::now().to_rfc3339()); tx.send_replace(latest.clone());
+                                latency.record_ws_tick();
+                                latest.book=Some(book.view()); latest.book_received_at=Some(arrival.to_rfc3339()); latest.book_received_at_ms=Some(arrival_ms); tx.send_replace(latest.clone());
                             }
                             _ => {}
                         }
@@ -280,8 +305,18 @@ mod tests {
             key: SigningKey::from_bytes(&[7; 32]),
         };
         let url = format!("ws://{address}/trade-api/ws/v2");
+        let mon = Arc::new(crate::latency::Monitor::new());
         let task = tokio::spawn(async move {
-            connect_market(&client, &credentials, "BTC-TEST", &tx, &url, Asset::Btc).await
+            connect_market(
+                &client,
+                &credentials,
+                "BTC-TEST",
+                &tx,
+                &url,
+                Asset::Btc,
+                &mon,
+            )
+            .await
         });
         time::timeout(Duration::from_secs(3), rx.changed())
             .await
@@ -321,8 +356,18 @@ mod tests {
             key: SigningKey::from_bytes(&[7; 32]),
         };
         let url = format!("ws://{address}/trade-api/ws/v2");
+        let mon = Arc::new(crate::latency::Monitor::new());
         let task = tokio::spawn(async move {
-            connect_market(&client, &credentials, "BTC-TEST", &tx, &url, Asset::Btc).await
+            connect_market(
+                &client,
+                &credentials,
+                "BTC-TEST",
+                &tx,
+                &url,
+                Asset::Btc,
+                &mon,
+            )
+            .await
         });
         time::timeout(Duration::from_secs(3), rx.changed())
             .await

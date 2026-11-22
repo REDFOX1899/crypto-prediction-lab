@@ -102,6 +102,10 @@ impl Client {
     pub fn with_base_url(base_url: &str) -> Result<Self, Error> {
         Ok(Self {
             http: reqwest::Client::builder()
+                .tcp_nodelay(true)
+                .connect_timeout(Duration::from_secs(3))
+                .pool_idle_timeout(Duration::from_secs(90))
+                .pool_max_idle_per_host(8)
                 .timeout(Duration::from_secs(15))
                 .build()?,
             base_url: base_url.trim_end_matches('/').to_owned(),
