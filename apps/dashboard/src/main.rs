@@ -619,11 +619,15 @@ async fn latency_telemetry(State(state): State<AppState>) -> Response {
 
 async fn latency_lab_script() -> impl IntoResponse {
     (
-        [
-            (header::CONTENT_TYPE, "text/javascript; charset=utf-8"),
-            (header::CACHE_CONTROL, "public, max-age=86400, immutable"),
-        ],
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
         include_str!("../public/latency-lab.js"),
+    )
+}
+
+async fn chart_theme_script() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "text/javascript; charset=utf-8")],
+        include_str!("../public/chart-theme.js"),
     )
 }
 #[derive(Deserialize)]
@@ -1510,6 +1514,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/latency", get(latency_telemetry))
         .route("/api/quant/simulation", get(quant_simulation))
         .route("/api/quant/signal", get(quant_signal))
+        .route("/assets/chart-theme.js", get(chart_theme_script))
         .route("/assets/latency-lab.js", get(latency_lab_script))
         .route("/assets/quant-lab.js", get(quant_lab_script))
         .route("/assets/quant-lab.css", get(quant_lab_style))

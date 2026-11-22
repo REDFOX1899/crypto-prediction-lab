@@ -1,5 +1,5 @@
 (function(root){'use strict';
-const palettes={light:{bg:'#f5f6f8',surface:'#ffffff',text:'#15212f',muted:'#59687a',border:'#d9e0e8',up:'#08744c',down:'#b0394b',accent:'#245bce',target:'#59687a',line:'#245bce',area:'rgba(36,91,206,.14)'},dark:{bg:'#080b10',surface:'#10161e',text:'#edf4fa',muted:'#a0adbe',border:'#2b3645',up:'#75e1b3',down:'#ff9aa7',accent:'#a5bdff',target:'#a0adbe',line:'#99b6ff',area:'rgba(153,182,255,.14)'}};
+const palettes={light:{bg:'#fafafa',surface:'#ffffff',text:'#141414',muted:'#5e5e66',border:'#d9d9d9',up:'#1b7a3d',down:'#c62828',accent:'#6d28d9',target:'#5e5e66',line:'#0074d9',area:'rgba(0,137,244,.12)'},dark:{bg:'#0b0b0d',surface:'#131317',text:'#f5f5f7',muted:'#a0a0ab',border:'#2a2a33',up:'#4ade80',down:'#fb7185',accent:'#a78bfa',target:'#a0a0ab',line:'#38bdf8',area:'rgba(56,189,248,.13)'}};
 function resolve(saved,system){return saved==='light'||saved==='dark'?saved:system?'dark':'light'}
 if(typeof module!=='undefined'){module.exports={resolve,palettes};return}
 let saved=null;try{saved=root.localStorage.getItem('cpl-theme')}catch{}

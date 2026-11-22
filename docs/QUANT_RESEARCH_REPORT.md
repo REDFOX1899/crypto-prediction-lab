@@ -78,3 +78,16 @@ Empirical Min 10–13 quote movement averages **`4.5¢/min`** (`3.8¢` over open
 
 - **360-Call Blinded Benchmark (`120` unseen windows × Min 4/9/12):** `0` errors · `p50 = 287.8 ms` · `p95 = 441.2 ms` · `p99 = 541.3 ms` · `0` output tokens · `$0.0255` total spend. At Minute 9, the Hybrid (`Quant + Gemini`) achieved the lowest Brier score (`0.15190` vs Quant `0.15212` vs Market `0.15303`), while Gemini's `action` head prudently selected `wait_or_pass` on `87.5%` of windows.
 - **Single-Pass Tavily News Screening:** Scoring all candidate headlines in **one single `POST /v1beta/decisions` call** (`36` questions in `425 ms` offline; `257 ms` live in Cloud Run) strips SEO converter pages and off-topic false positives (e.g., removing `"FBI's criminal information database hacked"` previously mis-tagged as bearish crypto news) while retaining high-impact liquidation and regulatory catalysts.
+
+---
+
+## 6. Gen-2 100-Agent Multi-Asset (`BTC + ETH + SOL`) & Sub-100ms Latency Audit (200 Total Agents)
+
+Following a 10-specialist parallel quant research review, we ran **100 additional Gen-2 paper-trading agents (`B001–B100`)** across all **3,150 out-of-sample contract-windows** (`1,050` cycles × `BTC`, `ETH`, `SOL`) with strict 5-fold expanding chronological walk-forward, 1-hour purged embargo, empirical Brownian latency drift (`2ms` → `5,000ms`), split-half chronological stability (`H1` vs `H2`), and exact **1-day ("tomorrow") empirical profit/loss distributions**, combined with Gen-1 into a **200-agent Benjamini-Hochberg FDR audit**:
+
+| Key Discovery | Empirical Result (`$100` Start, Strict OOS) | Interpretation & Risk Reality |
+| --- | --- | --- |
+| **Falsification Proof (`Pure FLB` vs `XAsset`)** | `B099` Pure FLB 72–88¢ (No Cross-Asset): **`$86.59`** (`-13.41%`, `-3.34¢/tr`, `401` trades) vs `B027` 3-Asset Best-EV FLB + XAsset: **`$110.61`** (`+10.61%`, `+2.47¢/tr`, `429` trades) | Blindly buying 72–88¢ favorites loses badly after Kalshi fees; cross-asset lead-lag confirmation is doing the real work. |
+| **SOL Inefficiency vs ETH Efficiency** | **SOL (`KXSOL15M`)**: **`10/10` profitable** (median `$107.00`; `B013` SOL BTC+ETH Lead 50ms: **`$107.81`**, `+8.78¢/tr`, Sharpe `+13.31`, `H1 +$1.91 / H2 +$5.90`; `B018` SOL FLB+XAsset: `$107.11`, `87.7%` win, `H1 +$3.51 / H2 +$3.60`) vs **ETH (`KXETH15M`)**: `1/10` profitable (median `$98.68`) | SOL's OOS base rate was balanced (`47.7%` YES), yet SOL quotes lag BTC+ETH repricing longer than ETH does. |
+| **Best Balanced Realistic Taker** | `B083` (`EU+US Liquid Hours 08–21 UTC · 3-Asset Best-EV FLB 72–88¢ + XAsset`): **`$110.22`** (`+10.22%`, `230` trades, `87.4%` win, `+4.44¢/tr`, `2.6%` max DD, `H1 +$4.56 / H2 +$5.66`, `p = 0.0275`) | Avoids thin overnight books and triple-correlated fee drag (`N_eff ≈ 1.07` when buying 3 assets simultaneously). |
+| **Honest 1-Day ("Tomorrow") Risk & 200-Agent FDR** | **`0/200` realistic takers (`n ≥ 30`)** survive combined 200-agent BH FDR `q ≤ 0.05`. Even `B083` & `B027` **lost money on `27.3%–38.5%` of individual 24-hour days** (`Worst 1d: -$2.35 to -$5.11` at 1-ct; `-$3.89` at 3% sizing). | **No strategy guarantees profit tomorrow.** Over 12 calendar days, binary favorite negative skew (~4:1 loss-to-win ratio) means any single day remains high-variance. Strictly read-only paper research. |

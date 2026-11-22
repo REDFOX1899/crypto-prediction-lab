@@ -42,6 +42,13 @@ test('100-agent $100 paper-trading tournament artifact and filter/sort logic val
   assert.equal(t.total_agents, 100);
   assert.equal(t.start_bankroll_usd, 100);
   assert.equal(t.agents.length, 100);
+  const g2 = sim.tournament_gen2;
+  assert.ok(g2, 'Expected Gen-2 100-agent tournament payload');
+  assert.equal(g2.total_agents, 100);
+  assert.equal(g2.total_combined_agents, 200);
+  assert.equal(g2.agents.length, 100);
+  assert.ok(typeof g2.agents[0].pct_days_profitable === 'number');
+  assert.ok(typeof g2.agents[0].half1_pnl_usd === 'number');
   assert.ok(sim.advanced_diagnostics.latency_decay_frontier.length >= 6);
   assert.equal(sim.advanced_diagnostics.minute_hurdle_heatmap.length, 14);
   assert.equal(sim.advanced_diagnostics.utc_session_profile.length, 24);

@@ -2,6 +2,35 @@
 
 Updated: 22 November 2026, America/New_York.
 
+## Artificial Analysis Chart System & 200-Agent Gen-2 Multi-Asset / Latency Arena — live on yesnotape.com
+
+Built, verified, deployed live to `https://www.yesnotape.com/` and `https://yesnotape.com/`, and pushed to GitHub (`main` and `codex/quant-decisions-ui`). Strictly read-only research and theoretical paper simulation; trading, RFQs, transfers and payments remain disabled.
+
+**Production state (`gitunderstand` / `us-central1`):**
+- Cloud Build **`293139b9-4dca-415b-99ec-62aaf50c72c0`** succeeded (`us-central1-docker.pkg.dev/gitunderstand/crypto-prediction-lab/dashboard@sha256:27858b1c4d1bb99d023af9ba691a17302fca6ea3af714cca45e8335921ce8da8`).
+- Public dashboard: **`crypto-prediction-lab-00034-vhb`** serving 100% traffic (retaining exact budget/resource limits: `0.25 vCPU`, `256 MiB`, `concurrency=1`, `min=0`, `max=1`, `gen1`, `--cpu-throttling`, `--no-cpu-boost`, existing IAM and Secret Manager mounts).
+- Private collector remains **`crypto-history-collector-00021-hmc`** (100% traffic, IAM-protected). Unrelated resources in `gitunderstand` untouched.
+
+**Visual & Chart System Overhaul (Inspired by Artificial Analysis):**
+- Created shared chart theme & editorial plugin engine `apps/dashboard/public/chart-theme.js` (served at `/assets/chart-theme.js?v=20261122-aa1`) and aligned light/dark tokens across `theme.js`, `focus.css`, `terminal.css`, `quant-lab.css`, `quant-lab.js`, and `latency-lab.js` (all WCAG AA ≥ 4.5:1 verified in `home-visuals.test.cjs` — `5.16:1` to `18.42:1`).
+- Implemented crisp `#FFFFFF`/`#FAFAFA` (light) and `#0B0B0D`/`#131317` (dark) hairline-bordered cards, vivid solid Artificial Analysis series palette (`#7F4BF3`, `#34A853`, `#0089F4`, `#CC785C`, `#FF7018`, `#2243E6`, `#1F1F1F`, `#1B818E`, `#736CD3`, `#195428`), dotted `[2, 4]` horizontal gridlines, top-left circle-dot legends, direct centered inside-bar & above-bar value labels, pale green "Most attractive quadrant" / optimal-zone shading, and a new **Pareto Frontier Scatter Plot** (`Ending Bankroll vs. Max Drawdown`) in Quant Lab (`9` charts total in Quant Lab + `5` charts in Latency Lab).
+
+**Gen-2 100-Agent Multi-Asset (`BTC+ETH+SOL`) & Sub-100ms Latency Paper Arena (200 Agents Total):**
+- Ran a 10-specialist parallel quant research review followed by **100 additional parallel Gen-2 paper-trading agents (`B001–B100`)** across all `3,150` out-of-sample contract-windows (`1,050` cycles × BTC/ETH/SOL, strict 5-fold expanding chronological walk-forward + 1h purged embargo), merged as `tournament_gen2` into `apps/dashboard/public/btc-15m-simulation.json` (schema v3, `280,174` bytes; `Gen-2` / `Gen-1` / `All 200` switcher in Quant Lab).
+- Key discoveries:
+  - **Falsification Proof:** `B099` Pure FLB 72–88¢ without cross-asset signal lost `-13.41%` (`$86.59`, `-3.34¢/tr`), while adding cross-asset confirmation (`B027`) reached `$110.61` (`+10.61%`, `85.3%` win).
+  - **SOL vs ETH Asymmetry:** `10/10` SOL agents were positive in both chronological halves (`B013` SOL BTC+ETH Lead 50ms: `$107.81`, `+8.78¢/tr`, Sharpe `+13.31`, `H1 +$1.91 / H2 +$5.90`; `B018` SOL FLB+XAsset: `$107.11`, `87.7%` win, `H1 +$3.51 / H2 +$3.60`), whereas `9/10` ETH agents lost (median `$98.68`).
+  - **Best Balanced Realistic Taker:** `B083` (`EU+US Liquid Hours · 3-Asset Best-EV FLB 72–88¢ + XAsset`) reached `$110.22` (`+10.22%`, `230` trades, `87.4%` win, `2.6%` max DD, `H1 +$4.56 / H2 +$5.66`, `p = 0.0275`).
+  - **Honest 1-Day ("Tomorrow") Risk & 200-Agent FDR:** `0/200` realistic takers (`n ≥ 30`) survived combined 200-agent Benjamini-Hochberg FDR `q ≤ 0.05`; even top realistic takers lost money on `27.3%–38.5%` of individual 24-hour days (`Worst 1d: -$2.35 to -$5.11` at 1-ct). No strategy guarantees next-day profit.
+
+**Checks passed:**
+- `cargo fmt --check`, `cargo clippy --locked --workspace --all-targets -- -D warnings`, `cargo test --locked --workspace` (**142 tests**).
+- `node --test apps/dashboard/tests/*.test.cjs` (**89 tests**, including `chart-theme.test.cjs`, `quant-lab.test.cjs` v3 200-agent assertions, and `home-visuals.test.cjs` WCAG ≥ 4.5:1 checks).
+- `python3 -m unittest discover -s scripts/tests -q` (**39 tests**), `git diff --check`.
+- Live production CDP audit on `https://www.yesnotape.com/?view=quant` (`crypto-prediction-lab-00034-vhb`): `9` Quant Lab canvases, `100` agent rows, live header pill `RTT 101ms · srv 0.26ms`, `0` JS exceptions, desktop light/dark & mobile 390px (`vw=390, sw=390`) verified.
+
+**Next concrete step:** Accumulate 30+ prospective days of untouched live Min 11–13 paper signals (`SOL BTC+ETH Lead` and `EU+US 3-Asset Best-EV FLB+XAsset`) to verify whether the Gen-2 paper edge holds outside the 12-day historical OOS archive without selection bias.
+
 ## Quant Lab, 100-Agent `$100` Paper Tournament, Gemini Decision 1 & Latency Telemetry — live on yesnotape.com
 
 Built, verified, deployed live to `https://www.yesnotape.com/` and `https://yesnotape.com/`, and pushed to GitHub (`codex/quant-decisions-ui` and `main`). Strictly read-only research and theoretical paper simulation; trading, RFQs, transfers and payments remain disabled.

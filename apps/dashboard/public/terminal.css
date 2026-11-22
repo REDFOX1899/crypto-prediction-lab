@@ -1,28 +1,38 @@
-/* Unified Modern Research Terminal Theme — Porcelain Light & Obsidian Dark.
-   Layered cleanly over focus.css tokens; respects WCAG >=4.5:1 contrast and reduced motion. */
+/* Unified Editorial Benchmark Theme — Inspired by Artificial Analysis.
+   Crisp neutral surfaces, hairline #D9D9D9 / #2A2A33 borders, WCAG >=4.5:1 light & dark contrast. */
 :root {
   --surface-elev: #ffffff;
-  --surface-glass: color-mix(in srgb, var(--bg) 84%, transparent);
-  --border-subtle: color-mix(in srgb, var(--border) 72%, transparent);
-  --border-strong: color-mix(in srgb, var(--text) 16%, var(--border));
-  --glow-accent: color-mix(in srgb, var(--accent) 12%, transparent);
-  --radius-sm: 8px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
+  --surface-glass: color-mix(in srgb, #ffffff 88%, transparent);
+  --border-subtle: #e5e5e7;
+  --border-strong: #b8b8c0;
+  --glow-accent: color-mix(in srgb, var(--accent) 6%, transparent);
+  --aa-purple: #7f4bf3;
+  --aa-green: #34a853;
+  --aa-azure: #0089f4;
+  --aa-orange: #ff7018;
+  --aa-terracotta: #cc785c;
+  --aa-yellow: #eab308;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
   --radius-pill: 999px;
 }
 :root[data-theme=dark] {
-  --surface-elev: #131b26;
-  --surface-glass: color-mix(in srgb, #080b10 82%, transparent);
-  --border-subtle: color-mix(in srgb, var(--border) 78%, transparent);
-  --border-strong: color-mix(in srgb, var(--text) 18%, var(--border));
-  --glow-accent: color-mix(in srgb, var(--accent) 15%, transparent);
+  --surface-elev: #131317;
+  --surface-glass: color-mix(in srgb, #0b0b0d 88%, transparent);
+  --border-subtle: #24242d;
+  --border-strong: #3f3f4b;
+  --glow-accent: color-mix(in srgb, var(--accent) 9%, transparent);
+  --aa-purple: #9d74f7;
+  --aa-green: #4ade80;
+  --aa-azure: #38bdf8;
+  --aa-orange: #fb923c;
+  --aa-terracotta: #e08e73;
+  --aa-yellow: #facc15;
 }
 
 body {
-  background:
-    radial-gradient(920px 380px at 14% -4%, var(--glow-accent), transparent 65%),
-    var(--bg);
+  background: var(--bg);
   min-block-size: 100dvh;
 }
 
@@ -185,11 +195,8 @@ body {
   margin-block: 0 24px;
   padding: clamp(16px, 2.2vw, 26px);
   border-radius: var(--radius-lg);
-  border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--border));
-  background:
-    radial-gradient(540px 220px at 96% 8%, var(--glow-accent), transparent 65%),
-    var(--surface-elev);
-  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  background: var(--surface-elev);
   min-inline-size: 0;
   max-inline-size: 100%;
 }
